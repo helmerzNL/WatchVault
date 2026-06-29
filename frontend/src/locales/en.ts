@@ -211,6 +211,13 @@ const en = {
   "settings.signOut": "Sign out",
   "settings.saved": "Saved",
   "settings.failed": "Failed",
+  "settings.dangerZone": "Danger zone",
+  "settings.resetAll": "Reset all data",
+  "settings.resetAllHelp": "Permanently delete every imported film and series, all watch history and the full metadata catalogue (titles, episodes, cast & crew, genres) and start from an empty database. Your connections are kept and re-import from scratch on the next sync. This cannot be undone.",
+  "settings.resetConfirmWord": "RESET",
+  "settings.resetConfirmPlaceholder": "Type {word} to confirm",
+  "settings.resetFinalConfirm": "This permanently deletes ALL imported films, series and watch history. Are you absolutely sure?",
+  "settings.resetDone": "Database reset · {events} events, {titles} titles and {people} people removed",
 
   // ── Title detail ────────────────────────────────────────────────────────
   "title.min": "{n} min",

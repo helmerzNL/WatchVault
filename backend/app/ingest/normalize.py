@@ -169,6 +169,38 @@ def clear_connection_events(source_connection_id: str | None) -> int:
     return removed
 
 
+def reset_all_data(reset_cursors: bool = True) -> dict:
+    """Factory-reset the watch database: delete every watch event and the entire
+    catalog built from imports (titles, episodes, people, genres and their
+    metadata), then rebuild the (now empty) daily aggregate.
+
+    Source connections themselves are kept so the user does not have to
+    reconfigure credentials. When ``reset_cursors`` is True their sync cursors and
+    status are cleared, so the next sync re-imports the full history from scratch.
+
+    Returns a dict of how many rows were removed per entity."""
+    with connection() as conn, conn.cursor() as cur:
+        # Pending enrichment/sync jobs reference entities we are about to remove.
+        cur.execute("DELETE FROM background_jobs "
+                    "WHERE kind IN ('enrich_title','enrich_person','sync_connection')")
+        cur.execute("DELETE FROM watch_events RETURNING id")
+        events = len(cur.fetchall())
+        # Deleting a title cascades to its episodes, cast/crew links and genres links.
+        cur.execute("DELETE FROM titles RETURNING id")
+        titles = len(cur.fetchall())
+        cur.execute("DELETE FROM people RETURNING id")
+        people = len(cur.fetchall())
+        cur.execute("DELETE FROM genres RETURNING id")
+        genres = len(cur.fetchall())
+        cur.execute("DELETE FROM metadata_provenance")
+        # Empties watch_daily_agg (no events left to roll up).
+        cur.execute("SELECT wv_rebuild_daily_agg()")
+        if reset_cursors:
+            cur.execute("UPDATE source_connections "
+                        "SET cursor = '{}'::jsonb, last_sync_at = NULL, last_status = NULL")
+    return {"events": events, "titles": titles, "people": people, "genres": genres}
+
+
 def prune_connection_libraries(source_connection_id: str | None, raw_key: str,
                                selected: set[str] | list[str]) -> int:
     """Remove a connection's watch events that came from libraries no longer in the

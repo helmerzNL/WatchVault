@@ -211,6 +211,13 @@ const es = {
   "settings.signOut": "Cerrar sesión",
   "settings.saved": "Guardado",
   "settings.failed": "Error",
+  "settings.dangerZone": "Zona de peligro",
+  "settings.resetAll": "Restablecer todos los datos",
+  "settings.resetAllHelp": "Elimina de forma permanente todas las películas y series importadas, todo el historial de visionado y el catálogo de metadatos completo (títulos, episodios, reparto y equipo, géneros) y empieza con una base de datos vacía. Tus conexiones se conservan y vuelven a importar todo desde cero en la próxima sincronización. Esta acción no se puede deshacer.",
+  "settings.resetConfirmWord": "RESET",
+  "settings.resetConfirmPlaceholder": "Escribe {word} para confirmar",
+  "settings.resetFinalConfirm": "Esto elimina de forma permanente TODAS las películas, series e historial de visionado importados. ¿Estás completamente seguro?",
+  "settings.resetDone": "Base de datos restablecida · {events} eventos, {titles} títulos y {people} personas eliminados",
 
   // ── Title detail ────────────────────────────────────────────────────────
   "title.min": "{n} min",

@@ -211,6 +211,13 @@ const nl = {
   "settings.signOut": "Uitloggen",
   "settings.saved": "Opgeslagen",
   "settings.failed": "Mislukt",
+  "settings.dangerZone": "Gevarenzone",
+  "settings.resetAll": "Alle gegevens wissen",
+  "settings.resetAllHelp": "Verwijder definitief alle geïmporteerde films en series, de volledige kijkgeschiedenis en de complete metadata-catalogus (titels, afleveringen, cast & crew, genres) en start met een lege database. Je verbindingen blijven behouden en importeren bij de volgende sync opnieuw vanaf nul. Dit kan niet ongedaan worden gemaakt.",
+  "settings.resetConfirmWord": "RESET",
+  "settings.resetConfirmPlaceholder": "Typ {word} om te bevestigen",
+  "settings.resetFinalConfirm": "Hiermee verwijder je definitief ALLE geïmporteerde films, series en kijkgeschiedenis. Weet je het absoluut zeker?",
+  "settings.resetDone": "Database gewist · {events} events, {titles} titels en {people} personen verwijderd",
 
   // ── Title detail ────────────────────────────────────────────────────────
   "title.min": "{n} min",

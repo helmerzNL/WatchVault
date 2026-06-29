@@ -178,6 +178,15 @@ the *Generic CSV/JSON* provider. The generic adapter auto-detects common column 
 
 Sample files to try live in [`sample-data/`](sample-data/).
 
+### Starting over
+
+To wipe everything and begin from an empty database, go to **Settings → Danger zone →
+Reset all data**, type the confirmation word and confirm. This permanently deletes all
+imported films/series, the entire watch history and the full metadata catalogue (titles,
+episodes, cast & crew, genres). Your configured connections are kept, and their sync
+cursors are reset so the next sync re-imports everything from scratch. The action is
+admin-only (`settings.manage`) and cannot be undone.
+
 ---
 
 ## Adding a new provider

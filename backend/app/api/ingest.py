@@ -6,7 +6,8 @@ import json
 from flask import Blueprint, jsonify, request
 
 from ..db import execute, query_all, query_one
-from ..ingest import ingest_events, prune_connection_libraries, clear_connection_events
+from ..ingest import (ingest_events, prune_connection_libraries,
+                      clear_connection_events, reset_all_data)
 from ..ingest.adapters import get_adapter
 from ..auth.sessions import current_user, require_perm
 from ._common import household_user_ids
@@ -298,3 +299,17 @@ def sync_connection(conn_id: str):
 def rebuild_agg():
     execute("SELECT wv_rebuild_daily_agg()")
     return jsonify({"ok": True})
+
+
+@bp.post("/ingest/reset-all")
+@require_perm("settings.manage")
+def reset_all():
+    """Factory-reset: wipe all imported watch events and the entire catalog,
+    starting from an empty database. Configured connections are kept; their
+    cursors are reset so a fresh sync re-imports everything from scratch.
+    Requires confirm=true in the body to avoid accidental wipes."""
+    body = request.get_json(silent=True) or {}
+    if body.get("confirm") is not True:
+        return jsonify({"error": "confirmation required"}), 400
+    removed = reset_all_data(reset_cursors=True)
+    return jsonify({"ok": True, "removed": removed})

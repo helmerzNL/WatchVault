@@ -211,6 +211,13 @@ const de = {
   "settings.signOut": "Abmelden",
   "settings.saved": "Gespeichert",
   "settings.failed": "Fehlgeschlagen",
+  "settings.dangerZone": "Gefahrenzone",
+  "settings.resetAll": "Alle Daten zurücksetzen",
+  "settings.resetAllHelp": "Lösche dauerhaft alle importierten Filme und Serien, den gesamten Wiedergabeverlauf und den kompletten Metadaten-Katalog (Titel, Episoden, Besetzung & Crew, Genres) und starte mit einer leeren Datenbank. Deine Verbindungen bleiben erhalten und importieren bei der nächsten Synchronisierung alles von Grund auf neu. Dies kann nicht rückgängig gemacht werden.",
+  "settings.resetConfirmWord": "RESET",
+  "settings.resetConfirmPlaceholder": "Tippe {word} zur Bestätigung",
+  "settings.resetFinalConfirm": "Dies löscht dauerhaft ALLE importierten Filme, Serien und den Wiedergabeverlauf. Bist du dir absolut sicher?",
+  "settings.resetDone": "Datenbank zurückgesetzt · {events} Ereignisse, {titles} Titel und {people} Personen entfernt",
 
   // ── Title detail ────────────────────────────────────────────────────────
   "title.min": "{n} Min.",

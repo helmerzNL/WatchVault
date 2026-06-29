@@ -212,6 +212,51 @@ function Account() {
   );
 }
 
+function DangerZone() {
+  const { can, toast } = useApp();
+  const { t } = useT();
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!can("settings.manage")) return null;
+
+  const word = t("settings.resetConfirmWord");
+  const armed = confirmText.trim().toUpperCase() === word.toUpperCase();
+
+  async function reset() {
+    if (!armed) return;
+    if (!confirm(t("settings.resetFinalConfirm"))) return;
+    setBusy(true);
+    try {
+      const res = await api.post("/ingest/reset-all", { confirm: true });
+      const r = res.removed || {};
+      toast(t("settings.resetDone", {
+        events: r.events ?? 0, titles: r.titles ?? 0, people: r.people ?? 0,
+      }));
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Section title={t("settings.dangerZone")}>
+      <div className="card col" style={{ gap: 14, borderColor: "var(--danger, #d4453a)" }}>
+        <div className="col" style={{ gap: 4 }}>
+          <strong>{t("settings.resetAll")}</strong>
+          <span className="caption">{t("settings.resetAllHelp")}</span>
+        </div>
+        <div className="row wrap" style={{ gap: 10 }}>
+          <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={t("settings.resetConfirmPlaceholder", { word })} />
+          <button className="btn-danger" style={{ flexShrink: 0 }} disabled={!armed || busy} onClick={reset}>
+            {busy ? t("common.saving") : t("settings.resetAll")}
+          </button>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 export function Settings() {
   const { t } = useT();
   return (
@@ -222,6 +267,7 @@ export function Settings() {
       <Plugins />
       <Tokens />
       <Account />
+      <DangerZone />
     </>
   );
 }
