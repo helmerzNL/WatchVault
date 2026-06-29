@@ -77,6 +77,7 @@ class PlexAdapter(SourceAdapter):
         resp.raise_for_status()
         root = ET.fromstring(resp.content)
 
+        meta_cache: dict[str, dict] = {}
         events: list[NormalizedEvent] = []
         max_viewed = since
         for video in root.findall("Video"):
@@ -91,6 +92,7 @@ class PlexAdapter(SourceAdapter):
             duration_ms = video.get("duration")
             duration_s = int(int(duration_ms) / 1000) if duration_ms else None
             if vtype == "episode":
+                meta_key = video.get("grandparentRatingKey")
                 events.append(NormalizedEvent(
                     raw_title=video.get("grandparentTitle", video.get("title", "")),
                     watched_at=watched, kind="series",
@@ -99,6 +101,7 @@ class PlexAdapter(SourceAdapter):
                     episode=_int(video.get("index")),
                     episode_name=video.get("title"),
                     duration_seconds=duration_s, completed=True,
+                    metadata=self._title_metadata(base, token, meta_key, meta_cache, "series"),
                     raw={"source": "plex", "ratingKey": video.get("ratingKey")},
                 ))
             else:
@@ -108,9 +111,33 @@ class PlexAdapter(SourceAdapter):
                     clean_title=video.get("title", ""),
                     year=_int(video.get("year")),
                     duration_seconds=duration_s, completed=True,
+                    metadata=self._title_metadata(base, token, video.get("ratingKey"), meta_cache, "movie"),
                     raw={"source": "plex", "ratingKey": video.get("ratingKey")},
                 ))
         return events, {"since": max_viewed}
+
+    def _title_metadata(self, base: str, token: str, rating_key: str | None,
+                        cache: dict, kind: str) -> dict:
+        """Fetch Plex-native metadata for a title (cached per ratingKey).
+        Best-effort: a failed call just yields no extra metadata."""
+        if not rating_key:
+            return {}
+        if rating_key in cache:
+            return cache[rating_key]
+        md: dict = {}
+        try:
+            resp = requests.get(f"{base}/library/metadata/{rating_key}",
+                                params={"X-Plex-Token": token}, timeout=20,
+                                headers={"Accept": "application/xml"})
+            if getattr(resp, "status_code", 200) == 200:
+                root = ET.fromstring(resp.content)
+                node = root.find("Directory") or root.find("Video")
+                if node is not None:
+                    md = _parse_metadata(node)
+        except Exception:  # noqa: BLE001 — best-effort, never break a sync
+            md = {}
+        cache[rating_key] = md
+        return md
 
 
 def _int(value) -> int | None:
@@ -118,3 +145,22 @@ def _int(value) -> int | None:
         return int(value)
     except (ValueError, TypeError):
         return None
+
+
+def _parse_metadata(node) -> dict:
+    """Extract WatchVault-shaped metadata from a Plex <Video>/<Directory> node."""
+    genres = [g.get("tag") for g in node.findall("Genre") if g.get("tag")]
+    cast = [{"name": r.get("tag"), "character": r.get("role"), "ord": i}
+            for i, r in enumerate(node.findall("Role")) if r.get("tag")]
+    crew = [{"name": d.get("tag"), "job": "Director"} for d in node.findall("Director") if d.get("tag")]
+    crew += [{"name": w.get("tag"), "job": "Writer"} for w in node.findall("Writer") if w.get("tag")]
+    duration_ms = node.get("duration")
+    runtime_minutes = round(int(duration_ms) / 60000) if duration_ms and duration_ms.isdigit() else None
+    return {
+        "overview": node.get("summary") or None,
+        "original_title": node.get("originalTitle") or None,
+        "genres": genres,
+        "cast": cast[:15],
+        "crew": crew,
+        "runtime_minutes": runtime_minutes,
+    }

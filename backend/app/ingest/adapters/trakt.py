@@ -39,6 +39,12 @@ def _runtime_seconds(obj: dict) -> int | None:
     return int(rt) * 60 if isinstance(rt, (int, float)) and rt else None
 
 
+def _pretty_genres(obj: dict) -> list[str]:
+    # Trakt returns genre slugs like "science-fiction"; make them display-friendly
+    # and consistent with TMDB's names ("Science Fiction").
+    return [g.replace("-", " ").title() for g in (obj.get("genres") or []) if g]
+
+
 class TraktAdapter(SourceAdapter):
     id = "trakt_api"
     ingest_type = "api"
@@ -127,6 +133,11 @@ class TraktAdapter(SourceAdapter):
                 completed=True,
                 tmdb_id=ids.get("tmdb"),
                 external_ids={k: v for k, v in ids.items() if v is not None},
+                metadata={
+                    "overview": movie.get("overview"),
+                    "genres": _pretty_genres(movie),
+                    "runtime_minutes": movie.get("runtime"),
+                },
                 raw={"source": "trakt", "history_id": hist_id},
             )
 
@@ -146,6 +157,11 @@ class TraktAdapter(SourceAdapter):
                 completed=True,
                 tmdb_id=show_ids.get("tmdb"),
                 external_ids={k: v for k, v in show_ids.items() if v is not None},
+                metadata={
+                    "overview": show.get("overview"),
+                    "genres": _pretty_genres(show),
+                    "runtime_minutes": show.get("runtime"),
+                },
                 raw={"source": "trakt", "history_id": hist_id},
             )
 

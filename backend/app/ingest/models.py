@@ -23,6 +23,10 @@ class NormalizedEvent:
     tmdb_id: Optional[int] = None
     external_ids: dict = field(default_factory=dict)
     raw: dict = field(default_factory=dict)
+    # Source-native metadata captured during ingest (overview/genres/cast/crew/
+    # runtime_minutes/original_title). Applied to the title, filling gaps only;
+    # TMDB later adds posters, per-language overviews and remaining fields.
+    metadata: dict = field(default_factory=dict)
 
     @property
     def item_kind(self) -> str:

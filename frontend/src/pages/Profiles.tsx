@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../lib/app";
+import { useT } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, Section } from "../components/ui";
@@ -8,6 +9,7 @@ import { initials, fmtNum, fmtDate, ACCENTS } from "../lib/format";
 
 export function Profiles() {
   const { user, can, toast, refreshProfiles } = useApp();
+  const { t } = useT();
   const profiles = useFetch<any[]>(() => api.get("/profiles"), []);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -25,7 +27,7 @@ export function Profiles() {
       setName(""); setIsAdmin(false); setAdding(false);
       profiles.reload(); refreshProfiles();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Failed", "err");
+      toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
     } finally { setBusy(false); }
   }
 
@@ -36,13 +38,13 @@ export function Profiles() {
   }
 
   async function remove(id: string, dn: string) {
-    if (!confirm(`Remove ${dn}? Their watch history will be hidden.`)) return;
+    if (!confirm(t("profiles.removeConfirm", { name: dn }))) return;
     try {
       await api.del(`/profiles/${id}`);
-      toast("Profile removed");
+      toast(t("profiles.profileRemoved"));
       profiles.reload(); refreshProfiles();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Failed", "err");
+      toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
     }
   }
 
@@ -51,23 +53,22 @@ export function Profiles() {
 
   return (
     <>
-      <Section title="Household members"
+      <Section title={t("profiles.householdMembers")}
         right={can("profiles.manage") ? (
           <button className="btn-ghost btn-sm" onClick={() => setAdding((a) => !a)}>
-            <IconPlus width={16} height={16} /> Add member
+            <IconPlus width={16} height={16} /> {t("profiles.addMember")}
           </button>
         ) : undefined}>
 
         {newCode && (
           <div className="card" style={{ marginBottom: 16, borderColor: "var(--accent)" }}>
-            <span className="headline">Recovery code for {newCode.name}</span>
+            <span className="headline">{t("profiles.recoveryCodeFor", { name: newCode.name })}</span>
             <p className="caption" style={{ margin: "8px 0 12px" }}>
-              Share this one-time code with {newCode.name}. They choose “Use recovery code” on the sign-in
-              screen, then create their own passkey. It won't be shown again.
+              {t("profiles.shareCode", { name: newCode.name })}
             </p>
             <div className="code-box" style={{ marginBottom: 12 }}>{newCode.code}</div>
             <button className="btn-ghost btn-sm" onClick={() => { navigator.clipboard?.writeText(newCode.code); setNewCode(null); }}>
-              Copy &amp; dismiss
+              {t("profiles.copyDismiss")}
             </button>
           </div>
         )}
@@ -75,17 +76,17 @@ export function Profiles() {
         {adding && (
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ marginBottom: 12 }}>
-              <label>Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="Family member's name"
+              <label>{t("profiles.name")}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder={t("profiles.memberNamePlaceholder")}
                 onKeyDown={(e) => e.key === "Enter" && add()} />
             </div>
             <label className="row" style={{ gap: 8, cursor: "pointer", marginBottom: 14 }}>
               <input type="checkbox" checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)}
                 style={{ width: "auto", minHeight: 0 }} />
-              <span>Make this member an admin</span>
+              <span>{t("profiles.makeAdmin")}</span>
             </label>
             <button className="btn-primary" disabled={busy} onClick={add}>
-              {busy ? "…" : "Create profile"}
+              {busy ? "…" : t("profiles.createProfile")}
             </button>
           </div>
         )}
@@ -97,20 +98,20 @@ export function Profiles() {
                 {p.avatar ? <img src={p.avatar} alt="" /> : initials(p.display_name)}
               </span>
               <div className="col" style={{ flex: 1, gap: 2 }}>
-                <strong>{p.display_name}{p.id === user?.id ? " (you)" : ""}
-                  {p.is_admin && <span className="chip" style={{ minHeight: 0, padding: "1px 8px", marginLeft: 8, fontSize: "0.7rem" }}>Admin</span>}
+                <strong>{p.display_name}{p.id === user?.id ? ` (${t("common.you")})` : ""}
+                  {p.is_admin && <span className="chip" style={{ minHeight: 0, padding: "1px 8px", marginLeft: 8, fontSize: "0.7rem" }}>{t("profiles.admin")}</span>}
                 </strong>
                 <span className="caption">
-                  {fmtNum(p.events)} events{p.last_seen_at ? ` · seen ${fmtDate(p.last_seen_at)}` : ""}
+                  {t("profiles.eventsCount", { count: fmtNum(p.events) })}{p.last_seen_at ? ` · ${t("profiles.seen", { date: fmtDate(p.last_seen_at) })}` : ""}
                 </span>
               </div>
               {(can("profiles.manage") || p.id === user?.id) && (
                 <button className="btn-ghost btn-sm" onClick={() => setEditing(editing === p.id ? null : p.id)}>
-                  Accent
+                  {t("profiles.accent")}
                 </button>
               )}
               {can("profiles.manage") && p.id !== user?.id && (
-                <button className="btn-danger btn-sm" onClick={() => remove(p.id, p.display_name)}>Remove</button>
+                <button className="btn-danger btn-sm" onClick={() => remove(p.id, p.display_name)}>{t("common.remove")}</button>
               )}
               {editing === p.id && (
                 <div className="swatches" style={{ flexBasis: "100%", marginTop: 10 }}>
@@ -129,10 +130,9 @@ export function Profiles() {
         <div className="row">
           <IconUsers width={20} height={20} />
           <div className="col" style={{ gap: 2, flex: 1 }}>
-            <span className="headline">How members join</span>
+            <span className="headline">{t("profiles.howMembersJoin")}</span>
             <span className="caption">
-              An admin adds a member here and shares the one-time recovery code. The member opens WatchVault,
-              picks “Use recovery code”, and creates their own passkey — no passwords anywhere.
+              {t("profiles.howMembersJoinHelp")}
             </span>
           </div>
         </div>

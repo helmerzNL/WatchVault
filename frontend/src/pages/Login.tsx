@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../lib/app";
+import { useT } from "../lib/i18n";
 import { loginPasskey, recoverWithCode, registerPasskey, passkeysSupported } from "../lib/auth";
 import { ApiError } from "../lib/api";
 import { addPasskey } from "../lib/auth";
@@ -8,6 +9,7 @@ type Mode = "login" | "register" | "recover";
 
 export function Login() {
   const { bootstrapped, refreshAuth, toast } = useApp();
+  const { t } = useT();
   const [mode, setMode] = useState<Mode>(bootstrapped ? "login" : "register");
   const [name, setName] = useState("");
   const [invite, setInvite] = useState("");
@@ -32,7 +34,7 @@ export function Login() {
   }
 
   async function doRegister() {
-    if (!name.trim()) { setErr("Please enter your name."); return; }
+    if (!name.trim()) { setErr(t("login.enterName")); return; }
     setBusy(true); setErr(null);
     try {
       const res = await registerPasskey(name.trim(), invite.trim() || undefined);
@@ -42,14 +44,14 @@ export function Login() {
   }
 
   async function doRecover() {
-    if (!code.trim()) { setErr("Enter your recovery code."); return; }
+    if (!code.trim()) { setErr(t("login.enterRecovery")); return; }
     setBusy(true); setErr(null);
     try {
       await recoverWithCode(code.trim());
       // recovered session is active — let the user enroll a passkey now
       await addPasskey("Recovered passkey").catch(() => {});
       await refreshAuth();
-      toast("Welcome back");
+      toast(t("login.welcomeBack"));
     } catch (e) { fail(e); } finally { setBusy(false); }
   }
 
@@ -57,17 +59,16 @@ export function Login() {
     return (
       <div className="center-screen">
         <div className="card" style={{ maxWidth: 460, width: "100%" }}>
-          <h1 className="title" style={{ marginBottom: 8 }}>Save your recovery codes</h1>
+          <h1 className="title" style={{ marginBottom: 8 }}>{t("login.saveRecoveryCodes")}</h1>
           <p className="muted" style={{ marginBottom: 16 }}>
-            Store these somewhere safe. Each code can be used once to sign in and add a new passkey
-            if you lose your device. They won't be shown again.
+            {t("login.saveRecoveryHelp")}
           </p>
           <div className="code-box" style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             {recoveryCodes.map((c) => <div key={c}>{c}</div>)}
           </div>
           <button className="btn-primary" style={{ width: "100%" }}
             onClick={async () => { navigator.clipboard?.writeText(recoveryCodes.join("\n")); await refreshAuth(); }}>
-            I've saved them — continue
+            {t("login.savedContinue")}
           </button>
         </div>
       </div>
@@ -81,25 +82,25 @@ export function Login() {
           <img src="/favicon.svg" alt="" style={{ width: 36, height: 36 }} />
           <span>WatchVault</span>
         </div>
-        <p className="muted" style={{ marginBottom: 20 }}>Your household's watch history, in one place.</p>
+        <p className="muted" style={{ marginBottom: 20 }}>{t("common.tagline")}</p>
 
         {!supported && (
           <p className="toast err" style={{ position: "static", transform: "none", marginBottom: 16 }}>
-            This browser doesn't support passkeys.
+            {t("login.noPasskeys")}
           </p>
         )}
 
         {mode === "login" && (
           <div className="col" style={{ gap: 14 }}>
             <button className="btn-primary" disabled={busy || !supported} onClick={doLogin}>
-              {busy ? "…" : "Sign in with passkey"}
+              {busy ? "…" : t("login.signInPasskey")}
             </button>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <button className="btn-ghost btn-sm" onClick={() => { setMode("register"); setErr(null); }}>
-                Join household
+                {t("login.joinHousehold")}
               </button>
               <button className="btn-ghost btn-sm" onClick={() => { setMode("recover"); setErr(null); }}>
-                Use recovery code
+                {t("login.useRecoveryCode")}
               </button>
             </div>
           </div>
@@ -108,25 +109,25 @@ export function Login() {
         {mode === "register" && (
           <div className="col" style={{ gap: 14 }}>
             {!bootstrapped && (
-              <p className="caption">You're the first here — this creates the household and makes you the admin.</p>
+              <p className="caption">{t("login.firstHere")}</p>
             )}
             <div>
-              <label>Your name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex"
+              <label>{t("login.yourName")}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("login.yourNamePlaceholder")}
                 autoFocus onKeyDown={(e) => e.key === "Enter" && doRegister()} />
             </div>
             {bootstrapped && (
               <div>
-                <label>Invite code (if required)</label>
-                <input value={invite} onChange={(e) => setInvite(e.target.value)} placeholder="Optional" />
+                <label>{t("login.inviteCode")}</label>
+                <input value={invite} onChange={(e) => setInvite(e.target.value)} placeholder={t("login.optional")} />
               </div>
             )}
             <button className="btn-primary" disabled={busy || !supported} onClick={doRegister}>
-              {busy ? "…" : "Create passkey"}
+              {busy ? "…" : t("login.createPasskey")}
             </button>
             {bootstrapped && (
               <button className="btn-ghost btn-sm" onClick={() => { setMode("login"); setErr(null); }}>
-                Back to sign in
+                {t("login.backToSignIn")}
               </button>
             )}
           </div>
@@ -135,15 +136,15 @@ export function Login() {
         {mode === "recover" && (
           <div className="col" style={{ gap: 14 }}>
             <div>
-              <label>Recovery code</label>
+              <label>{t("login.recoveryCode")}</label>
               <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="XXXX-XXXX-XXXX"
                 autoFocus onKeyDown={(e) => e.key === "Enter" && doRecover()} />
             </div>
             <button className="btn-primary" disabled={busy} onClick={doRecover}>
-              {busy ? "…" : "Recover & add passkey"}
+              {busy ? "…" : t("login.recoverAddPasskey")}
             </button>
             <button className="btn-ghost btn-sm" onClick={() => { setMode("login"); setErr(null); }}>
-              Back to sign in
+              {t("login.backToSignIn")}
             </button>
           </div>
         )}

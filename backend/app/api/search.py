@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from ..db import query_all
+from ..db import query_all, query_one
 from ..auth.sessions import require_perm
 from ._common import EFF_SECONDS, poster_url, scope_user_ids
 
@@ -24,6 +24,7 @@ def search():
     platform = (request.args.get("platform") or "").strip()
     year = request.args.get("year")
     kind = (request.args.get("kind") or "").strip()
+    lang = (request.args.get("lang") or "en").strip()[:2]
     limit = min(int(request.args.get("limit", 60)), 200)
     offset = max(int(request.args.get("offset", 0)), 0)
 
@@ -61,7 +62,7 @@ def search():
 
     clause = " AND ".join(where)
     rows = query_all(
-        f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, t.overview, "
+        f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, t.overview, t.overviews, "
         f"  count(*) AS events, max(we.watched_date) AS last_watched, "
         f"  COALESCE(sum({EFF_SECONDS}),0) AS seconds, "
         f"  array_agg(DISTINCT p.name) AS platforms "
@@ -83,7 +84,8 @@ def search():
         "total": int(total),
         "results": [
             {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
-             "poster": poster_url(r["poster_path"]), "overview": r["overview"],
+             "poster": poster_url(r["poster_path"]),
+             "overview": (r["overviews"] or {}).get(lang) or r["overview"],
              "events": int(r["events"]), "last_watched": r["last_watched"].isoformat(),
              "hours": round((r["seconds"] or 0) / 3600, 2),
              "platforms": [p for p in r["platforms"] if p]}
@@ -96,20 +98,33 @@ def search():
 @require_perm("catalog.read")
 def title_detail(title_id: str):
     ids = [str(i) for i in scope_user_ids()]
-    rows = query_all("SELECT * FROM titles WHERE id = %s", (title_id,))
-    if not rows:
+    lang = (request.args.get("lang") or "en").strip()[:2]
+
+    t = query_one("SELECT * FROM titles WHERE id = %s", (title_id,))
+    if not t:
         return jsonify({"error": "not found"}), 404
-    t = rows[0]
+
+    # Lazy enrichment on open: fetch metadata the first time a title is viewed.
+    if t.get("enriched_at") is None:
+        try:
+            from ..plugins import enrich_title, runtime
+            if runtime.capability_providers("movie_details"):
+                enrich_title(title_id)
+                t = query_one("SELECT * FROM titles WHERE id = %s", (title_id,)) or t
+        except Exception:  # noqa: BLE001 — enrichment is best-effort
+            pass
+
     genres = query_all(
         "SELECT g.name FROM title_genres tg JOIN genres g ON g.id = tg.genre_id "
         "WHERE tg.title_id = %s ORDER BY g.name", (title_id,))
     cast = query_all(
-        "SELECT pe.name, pe.profile_path, tp.character FROM title_people tp "
+        "SELECT pe.id, pe.name, pe.profile_path, tp.character FROM title_people tp "
         "JOIN people pe ON pe.id = tp.person_id WHERE tp.title_id = %s AND tp.role='cast' "
-        "ORDER BY tp.ord LIMIT 15", (title_id,))
+        "ORDER BY tp.ord LIMIT 20", (title_id,))
     crew = query_all(
-        "SELECT pe.name, tp.job FROM title_people tp JOIN people pe ON pe.id = tp.person_id "
-        "WHERE tp.title_id = %s AND tp.role='crew'", (title_id,))
+        "SELECT pe.id, pe.name, pe.profile_path, tp.job FROM title_people tp "
+        "JOIN people pe ON pe.id = tp.person_id "
+        "WHERE tp.title_id = %s AND tp.role='crew' ORDER BY tp.ord", (title_id,))
     events = query_all(
         f"SELECT we.watched_date, we.item_kind, we.season, we.episode, we.raw_title, "
         f"  p.name AS platform, u.display_name AS who "
@@ -118,16 +133,21 @@ def title_detail(title_id: str):
         f"WHERE we.title_id = %s AND we.user_id = ANY(%s::uuid[]) AND we.deleted_at IS NULL "
         f"ORDER BY we.watched_date DESC LIMIT 200",
         (title_id, ids))
+
+    overviews = t.get("overviews") or {}
+    overview = overviews.get(lang) or t["overview"] or overviews.get("en")
     return jsonify({
         "id": str(t["id"]), "title": t["title"], "kind": t["kind"], "year": t["year"],
-        "overview": t["overview"], "poster": poster_url(t["poster_path"]),
+        "overview": overview, "overviews": overviews,
+        "poster": poster_url(t["poster_path"]),
         "backdrop": poster_url(t["backdrop_path"], "w780"),
         "runtime_minutes": t["runtime_minutes"], "tmdb_id": t["tmdb_id"],
         "external_ids": t["external_ids"],
         "genres": [g["name"] for g in genres],
-        "cast": [{"name": c["name"], "character": c["character"],
+        "cast": [{"id": str(c["id"]), "name": c["name"], "character": c["character"],
                   "profile": poster_url(c["profile_path"], "w185")} for c in cast],
-        "crew": [{"name": c["name"], "job": c["job"]} for c in crew],
+        "crew": [{"id": str(c["id"]), "name": c["name"], "job": c["job"],
+                  "profile": poster_url(c["profile_path"], "w185")} for c in crew],
         "events": [
             {"date": e["watched_date"].isoformat(), "kind": e["item_kind"],
              "season": e["season"], "episode": e["episode"], "raw_title": e["raw_title"],

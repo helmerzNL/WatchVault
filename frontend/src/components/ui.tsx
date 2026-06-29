@@ -1,13 +1,17 @@
 import type { ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../lib/api";
+import { useT } from "../lib/i18n";
+import { enqueueEnrich } from "../lib/lazyEnrich";
 import { IconFilm, IconTv } from "./icons";
 
-export function Loading({ label = "Loading…" }: { label?: string }) {
+export function Loading({ label }: { label?: string }) {
+  const { t } = useT();
   return (
     <div className="loading-box">
       <div className="spinner" />
-      <div className="muted">{label}</div>
+      <div className="muted">{label ?? t("common.loading")}</div>
     </div>
   );
 }
@@ -23,12 +27,13 @@ export function Empty({ title, hint, action }: { title: string; hint?: string; a
 }
 
 export function ErrorState({ error, retry }: { error: unknown; retry?: () => void }) {
+  const { t } = useT();
   const msg = error instanceof ApiError ? error.message : error instanceof Error ? error.message : String(error);
   return (
     <div className="empty">
-      <div className="title" style={{ marginBottom: 8 }}>Something went wrong</div>
+      <div className="title" style={{ marginBottom: 8 }}>{t("common.somethingWrong")}</div>
       <p className="muted" style={{ marginBottom: 16 }}>{msg}</p>
-      {retry && <button className="btn-ghost" onClick={retry}>Try again</button>}
+      {retry && <button className="btn-ghost" onClick={retry}>{t("common.tryAgain")}</button>}
     </div>
   );
 }
@@ -56,7 +61,7 @@ export function Stat({ value, label }: { value: ReactNode; label: string }) {
 }
 
 export function Poster({
-  poster, title, subtitle, badge, kind, to,
+  poster, title, subtitle, badge, kind, to, enrichId,
 }: {
   poster?: string | null;
   title: string;
@@ -64,7 +69,22 @@ export function Poster({
   badge?: string;
   kind?: string;
   to?: string;
+  enrichId?: string | null;
 }) {
+  const ref = useRef<HTMLAnchorElement | HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!enrichId || !ref.current || typeof IntersectionObserver === "undefined") return;
+    const el = ref.current;
+    const obs = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) { enqueueEnrich(enrichId); obs.disconnect(); break; }
+      }
+    }, { rootMargin: "200px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [enrichId]);
+
   const inner = (
     <>
       <div className="poster">
@@ -84,5 +104,7 @@ export function Poster({
       </div>
     </>
   );
-  return to ? <Link to={to} className="poster-tile">{inner}</Link> : <div className="poster-tile">{inner}</div>;
+  return to
+    ? <Link ref={ref as any} to={to} className="poster-tile">{inner}</Link>
+    : <div ref={ref as any} className="poster-tile">{inner}</div>;
 }

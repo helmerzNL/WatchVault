@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useApp } from "../lib/app";
+import { useT } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, Section } from "../components/ui";
@@ -16,6 +17,7 @@ interface Provider {
 
 function FileImport({ providers, onDone }: { providers: Provider[]; onDone: () => void }) {
   const { profiles, user, toast, can } = useApp();
+  const { t } = useT();
   const fileProviders = providers.filter((p) => p.ingest_type === "csv" || p.ingest_type === "file");
   const [provider, setProvider] = useState(fileProviders[0]?.key || "");
   const [target, setTarget] = useState(user?.id || "");
@@ -24,8 +26,8 @@ function FileImport({ providers, onDone }: { providers: Provider[]; onDone: () =
 
   async function submit() {
     const f = fileRef.current?.files?.[0];
-    if (!f) { toast("Choose a file first", "err"); return; }
-    if (!provider) { toast("Pick a provider", "err"); return; }
+    if (!f) { toast(t("imports.chooseFile"), "err"); return; }
+    if (!provider) { toast(t("imports.pickProvider"), "err"); return; }
     setBusy(true);
     try {
       const form = new FormData();
@@ -33,11 +35,11 @@ function FileImport({ providers, onDone }: { providers: Provider[]; onDone: () =
       form.set("file", f);
       if (target) form.set("user_id", target);
       const res = await api.upload("/ingest/import", form);
-      toast(`Imported ${res.inserted} new (${res.duplicates} duplicates, ${res.titles_created} titles)`);
+      toast(t("imports.imported", { inserted: res.inserted, duplicates: res.duplicates, titles: res.titles_created }));
       if (fileRef.current) fileRef.current.value = "";
       onDone();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Import failed", "err");
+      toast(e instanceof ApiError ? e.message : t("imports.importFailed"), "err");
     } finally { setBusy(false); }
   }
 
@@ -47,29 +49,28 @@ function FileImport({ providers, onDone }: { providers: Provider[]; onDone: () =
     <div className="card">
       <div className="row" style={{ marginBottom: 14 }}>
         <IconImport width={20} height={20} />
-        <span className="headline">Import a file</span>
+        <span className="headline">{t("imports.importFile")}</span>
       </div>
       <p className="caption" style={{ marginBottom: 16 }}>
-        Netflix: Account → Profile → <em>Viewing activity</em> → <em>Download all</em>. Drop the CSV here.
-        Other services: use a generic CSV/JSON export.
+        {t("imports.netflixHelp")}
       </p>
       <div className="filters-grid" style={{ marginBottom: 14 }}>
         <div>
-          <label>Provider</label>
+          <label>{t("imports.provider")}</label>
           <select value={provider} onChange={(e) => setProvider(e.target.value)}>
             {fileProviders.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
           </select>
         </div>
         <div>
-          <label>Attribute to</label>
+          <label>{t("imports.attributeTo")}</label>
           <select value={target} onChange={(e) => setTarget(e.target.value)}>
-            {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}{p.id === user?.id ? " (you)" : ""}</option>)}
+            {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}{p.id === user?.id ? ` (${t("common.you")})` : ""}</option>)}
           </select>
         </div>
       </div>
       <input ref={fileRef} type="file" accept=".csv,.json,.tsv,text/csv,application/json" style={{ marginBottom: 14 }} />
       <button className="btn-primary" disabled={busy} onClick={submit}>
-        {busy ? "Importing…" : "Import file"}
+        {busy ? t("imports.importing") : t("imports.importFileBtn")}
       </button>
     </div>
   );
@@ -79,6 +80,7 @@ function Connections({ providers, connections, reload }: {
   providers: Provider[]; connections: any[]; reload: () => void;
 }) {
   const { toast, can } = useApp();
+  const { t } = useT();
   const apiProviders = providers.filter((p) => p.ingest_type === "api");
   const [adding, setAdding] = useState(false);
   const [provider, setProvider] = useState(apiProviders[0]?.key || "");
@@ -109,26 +111,26 @@ function Connections({ providers, connections, reload }: {
     try {
       const res = await api.post("/connections/libraries", { provider, config });
       setLibs(res.libraries || []);
-      if (!res.libraries?.length) toast("No libraries found for this server", "err");
+      if (!res.libraries?.length) toast(t("imports.noLibrariesFound"), "err");
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not load libraries", "err");
+      toast(e instanceof ApiError ? e.message : t("imports.couldNotLoadLibraries"), "err");
     } finally { setLibBusy(false); }
   }
 
   async function create() {
     const missing = fields.filter((f) => f.required && !String(config[f.key] ?? "").trim());
     if (missing.length) {
-      toast(`Fill in: ${missing.map((f) => f.label).join(", ")}`, "err");
+      toast(t("imports.fillIn", { fields: missing.map((f) => f.label).join(", ") }), "err");
       return;
     }
     setBusy("create");
     try {
       await api.post("/connections", { provider, name: name || undefined, config });
-      toast("Connection added");
+      toast(t("imports.connectionAdded"));
       setAdding(false); setName(""); setConfig({}); setLibs(null);
       reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Failed", "err");
+      toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
     } finally { setBusy(null); }
   }
 
@@ -136,16 +138,16 @@ function Connections({ providers, connections, reload }: {
     setBusy(id);
     try {
       const res = await api.post(`/connections/${id}/sync`);
-      toast(`Synced: +${res.inserted} new (${res.duplicates} dup)`);
+      toast(t("imports.synced", { inserted: res.inserted, duplicates: res.duplicates }));
       reload();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Sync failed", "err");
+      toast(e instanceof ApiError ? e.message : t("imports.syncFailed"), "err");
       reload();
     } finally { setBusy(null); }
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this connection?")) return;
+    if (!confirm(t("imports.removeConnectionConfirm"))) return;
     await api.del(`/connections/${id}`);
     reload();
   }
@@ -154,41 +156,41 @@ function Connections({ providers, connections, reload }: {
     <div className="card">
       <div className="row" style={{ marginBottom: 14 }}>
         <IconRefresh width={20} height={20} />
-        <span className="headline">API sync connections</span>
+        <span className="headline">{t("imports.apiConnections")}</span>
         <div className="spacer" />
         {can("ingest.write") && apiProviders.length > 0 && (
           <button className="btn-ghost btn-sm" onClick={() => setAdding((a) => !a)}>
-            <IconPlus width={16} height={16} /> Add
+            <IconPlus width={16} height={16} /> {t("common.add")}
           </button>
         )}
       </div>
       <p className="caption" style={{ marginBottom: 16 }}>
-        Plex, Jellyfin &amp; Trakt expose official APIs — connect once and sync watch history on demand.
+        {t("imports.apiHelp")}
       </p>
 
       {adding && (
         <div className="card" style={{ marginBottom: 16, background: "var(--bg)" }}>
           <div className="filters-grid" style={{ marginBottom: 12 }}>
             <div>
-              <label>Service</label>
+              <label>{t("imports.service")}</label>
               <select value={provider} onChange={(e) => pickProvider(e.target.value)}>
                 {apiProviders.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
               </select>
             </div>
             <div>
-              <label>Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={selected ? `${selected.name} (household)` : "Connection name"} />
+              <label>{t("imports.name")}</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={selected ? t("imports.householdSuffix", { name: selected.name }) : t("imports.connectionNamePlaceholder")} />
             </div>
           </div>
           {fields.map((f) => (
             f.type === "library_select" ? (
               <div key={f.key} style={{ marginBottom: 12 }}>
-                <label>{f.label} (optional)</label>
+                <label>{t("imports.optionalSuffix", { label: f.label })}</label>
                 <div className="row" style={{ gap: 8, marginBottom: libs ? 8 : 0 }}>
                   <button className="btn-ghost btn-sm" disabled={libBusy} onClick={loadLibraries}>
-                    {libBusy ? "Loading…" : <><IconRefresh width={15} height={15} /> Load libraries</>}
+                    {libBusy ? t("imports.loadingShort") : <><IconRefresh width={15} height={15} /> {t("imports.loadLibraries")}</>}
                   </button>
-                  {libs && <span className="caption">{(config[f.key]?.length || 0)} of {libs.length} selected</span>}
+                  {libs && <span className="caption">{t("imports.librariesSelected", { selected: config[f.key]?.length || 0, total: libs.length })}</span>}
                 </div>
                 {libs && libs.length > 0 && (
                   <div className="col" style={{ gap: 6 }}>
@@ -208,7 +210,7 @@ function Connections({ providers, connections, reload }: {
               </div>
             ) : (
               <div key={f.key} style={{ marginBottom: 12 }}>
-                <label>{f.label}{f.required ? "" : " (optional)"}</label>
+                <label>{f.required ? f.label : t("imports.optionalSuffix", { label: f.label })}</label>
                 <input
                   value={config[f.key] || ""}
                   onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
@@ -220,13 +222,13 @@ function Connections({ providers, connections, reload }: {
             )
           ))}
           <button className="btn-primary" disabled={busy === "create"} onClick={create}>
-            {busy === "create" ? "Saving…" : "Save connection"}
+            {busy === "create" ? t("common.saving") : t("imports.saveConnection")}
           </button>
         </div>
       )}
 
       {connections.length === 0 ? (
-        <p className="muted">No connections yet.</p>
+        <p className="muted">{t("imports.noConnections")}</p>
       ) : (
         <div>
           {connections.map((c) => (
@@ -235,16 +237,16 @@ function Connections({ providers, connections, reload }: {
                 <strong>{c.name}</strong>
                 <span className="caption">
                   {c.provider_name}
-                  {c.last_sync_at ? ` · last sync ${fmtDate(c.last_sync_at)}` : " · never synced"}
+                  {c.last_sync_at ? ` · ${t("imports.lastSync", { date: fmtDate(c.last_sync_at) })}` : ` · ${t("imports.neverSynced")}`}
                   {c.last_status ? ` · ${c.last_status}` : ""}
                 </span>
               </div>
               {can("ingest.write") && (
                 <>
                   <button className="btn-ghost btn-sm" disabled={busy === c.id} onClick={() => sync(c.id)}>
-                    {busy === c.id ? "…" : <><IconRefresh width={15} height={15} /> Sync</>}
+                    {busy === c.id ? "…" : <><IconRefresh width={15} height={15} /> {t("imports.sync")}</>}
                   </button>
-                  <button className="btn-danger btn-sm" onClick={() => remove(c.id)}>Remove</button>
+                  <button className="btn-danger btn-sm" onClick={() => remove(c.id)}>{t("common.remove")}</button>
                 </>
               )}
             </div>
@@ -257,6 +259,7 @@ function Connections({ providers, connections, reload }: {
 
 export function Imports() {
   const { can, toast } = useApp();
+  const { t } = useT();
   const providers = useFetch<Provider[]>(() => api.get("/providers"), []);
   const connections = useFetch<any[]>(() => api.get("/connections"), []);
   const [rebuilding, setRebuilding] = useState(false);
@@ -265,8 +268,8 @@ export function Imports() {
     setRebuilding(true);
     try {
       await api.post("/ingest/rebuild-agg");
-      toast("Aggregates rebuilt");
-    } catch { toast("Rebuild failed", "err"); }
+      toast(t("imports.aggregatesRebuilt"));
+    } catch { toast(t("imports.rebuildFailed"), "err"); }
     finally { setRebuilding(false); }
   }
 
@@ -274,7 +277,7 @@ export function Imports() {
 
   return (
     <>
-      <h1 className="large-title" style={{ marginBottom: 16 }}>Imports &amp; sync</h1>
+      <h1 className="large-title" style={{ marginBottom: 16 }}>{t("imports.title")}</h1>
       <div className="col" style={{ gap: 20 }}>
         <FileImport providers={providers.data || []} onDone={() => connections.reload()} />
         <Connections providers={providers.data || []} connections={connections.data || []} reload={connections.reload} />
@@ -283,11 +286,11 @@ export function Imports() {
           <div className="card">
             <div className="row">
               <div className="col" style={{ gap: 2, flex: 1 }}>
-                <span className="headline">Maintenance</span>
-                <span className="caption">Recompute the precomputed daily aggregates from raw events.</span>
+                <span className="headline">{t("imports.maintenance")}</span>
+                <span className="caption">{t("imports.maintenanceHelp")}</span>
               </div>
               <button className="btn-ghost btn-sm" disabled={rebuilding} onClick={rebuild}>
-                {rebuilding ? "…" : <><IconCheck width={16} height={16} /> Rebuild aggregates</>}
+                {rebuilding ? "…" : <><IconCheck width={16} height={16} /> {t("imports.rebuildAggregates")}</>}
               </button>
             </div>
           </div>

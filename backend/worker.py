@@ -11,7 +11,7 @@ import time
 import traceback
 
 from app.db import connection
-from app.plugins import enrich_title
+from app.plugins import enrich_person, enrich_title
 
 POLL_INTERVAL = 3          # seconds between queue polls
 SCHEDULE_INTERVAL = 900    # enqueue connection syncs every 15 min
@@ -56,6 +56,8 @@ def _handle(job) -> dict:
     payload = job["payload"] or {}
     if kind == "enrich_title":
         return enrich_title(payload["title_id"])
+    if kind == "enrich_person":
+        return enrich_person(payload["person_id"])
     if kind == "sync_connection":
         return _run_sync(payload["connection_id"])
     return {"status": "unknown_kind"}

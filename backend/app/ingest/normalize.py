@@ -6,6 +6,7 @@ from typing import Iterable
 
 from ..db import connection, query_one
 from ..util import dedup_hash, normalize_text
+from ..catalog import apply_title_details
 from .models import NormalizedEvent
 
 
@@ -62,6 +63,29 @@ def _jsonb(value: dict):
     return json.dumps(value or {})
 
 
+def _apply_source_metadata(cur, title_id: str, ev: NormalizedEvent) -> None:
+    """Merge a provider's own metadata (overview/genres/cast/crew/runtime) into
+    the title, filling gaps only. Source stays authoritative because ingest runs
+    before the TMDB enrich job."""
+    md = ev.metadata or {}
+    source = ev.raw.get("source") or "import"
+    runtime_minutes = md.get("runtime_minutes")
+    if runtime_minutes is None and ev.duration_seconds:
+        runtime_minutes = round(ev.duration_seconds / 60) or None
+    details = {
+        "original_title": md.get("original_title"),
+        "year": ev.year,
+        "overview": md.get("overview"),
+        "runtime_minutes": runtime_minutes,
+        "tmdb_id": ev.tmdb_id,
+        "external_ids": ev.external_ids,
+        "genres": md.get("genres") or [],
+        "cast": md.get("cast") or [],
+        "crew": md.get("crew") or [],
+    }
+    apply_title_details(cur, title_id, details, source)
+
+
 def ingest_events(user_id: str, provider_id: str, source_connection_id: str | None,
                   events: Iterable[NormalizedEvent]) -> dict:
     """Insert normalized events with dedup; returns a summary and new title ids."""
@@ -69,6 +93,7 @@ def ingest_events(user_id: str, provider_id: str, source_connection_id: str | No
     duplicates = 0
     titles_created: list[str] = []
     touched_titles: set[str] = set()
+    meta_applied: set[str] = set()
 
     with connection() as conn, conn.cursor() as cur:
         for ev in events:
@@ -81,6 +106,10 @@ def ingest_events(user_id: str, provider_id: str, source_connection_id: str | No
             if created:
                 titles_created.append(title_id)
             touched_titles.add(title_id)
+            # Capture source-native metadata once per title per ingest run.
+            if ev.metadata and title_id not in meta_applied:
+                meta_applied.add(title_id)
+                _apply_source_metadata(cur, title_id, ev)
             episode_id = _resolve_episode(
                 cur, title_id, ev.season, ev.episode, ev.episode_name
             )

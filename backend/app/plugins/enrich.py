@@ -1,57 +1,18 @@
-"""Metadata enrichment: dispatch to capable plugins, merge results into a
-title, and record per-field provenance (which plugin contributed which field)."""
+"""Metadata enrichment: dispatch to capable plugins, merge results into the
+central model via the shared catalog helpers, and record per-field provenance.
+
+Two entry points:
+
+* ``enrich_title(title_id)``  — posters/overview(s)/genres/cast/crew for a title.
+* ``enrich_person(person_id)`` — biography (in every language), birth info, photo.
+"""
 from __future__ import annotations
 
 import json
 
+from ..catalog import apply_person_details, apply_title_details
 from ..db import connection
-from ..util import normalize_text
 from . import runtime
-
-
-def _provenance(cur, entity_id, field, source, value):
-    cur.execute(
-        "INSERT INTO metadata_provenance (entity_type, entity_id, field, source, value) "
-        "VALUES ('title', %s, %s, %s, %s) "
-        "ON CONFLICT (entity_type, entity_id, field) DO UPDATE SET "
-        "source = EXCLUDED.source, value = EXCLUDED.value, created_at = now()",
-        (entity_id, field, source, json.dumps(value)),
-    )
-
-
-def _upsert_genre(cur, name: str) -> int:
-    cur.execute(
-        "INSERT INTO genres (name) VALUES (%s) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name "
-        "RETURNING id",
-        (name,),
-    )
-    return cur.fetchone()["id"]
-
-
-def _upsert_person(cur, person: dict) -> str:
-    tmdb_id = person.get("tmdb_id")
-    name = (person.get("name") or "").strip()
-    if not name:
-        return None
-    if tmdb_id:
-        cur.execute("SELECT id FROM people WHERE tmdb_id = %s", (tmdb_id,))
-        row = cur.fetchone()
-        if row:
-            return row["id"]
-    cur.execute("SELECT id FROM people WHERE normalized_key = %s AND tmdb_id IS NULL",
-                (normalize_text(name),))
-    row = cur.fetchone()
-    if row:
-        if tmdb_id:
-            cur.execute("UPDATE people SET tmdb_id = %s, profile_path = %s WHERE id = %s",
-                        (tmdb_id, person.get("profile_path"), row["id"]))
-        return row["id"]
-    cur.execute(
-        "INSERT INTO people (name, normalized_key, tmdb_id, profile_path) "
-        "VALUES (%s, %s, %s, %s) RETURNING id",
-        (name, normalize_text(name), tmdb_id, person.get("profile_path")),
-    )
-    return cur.fetchone()["id"]
 
 
 def enrich_title(title_id: str) -> dict:
@@ -94,47 +55,61 @@ def enrich_title(title_id: str) -> dict:
         return {"status": "no_match"}
 
     with connection() as conn, conn.cursor() as cur:
+        apply_title_details(cur, title_id, details, source)
+        # queue lazy person enrichment for linked people that have a tmdb id
         cur.execute(
-            "UPDATE titles SET "
-            "  title = COALESCE(%s, title), original_title = %s, year = COALESCE(%s, year), "
-            "  overview = %s, runtime_minutes = COALESCE(%s, runtime_minutes), "
-            "  poster_path = %s, backdrop_path = %s, tmdb_id = %s, imdb_id = %s, "
-            "  metadata = metadata || %s::jsonb, enriched_at = now(), updated_at = now() "
-            "WHERE id = %s",
-            (details.get("title"), details.get("original_title"), details.get("year"),
-             details.get("overview"), details.get("runtime_minutes"),
-             details.get("poster_path"), details.get("backdrop_path"),
-             details.get("tmdb_id"), details.get("imdb_id"),
-             json.dumps({"enriched_by": source}), title_id),
-        )
-        for fld in ("poster_path", "overview", "year", "runtime_minutes"):
-            if details.get(fld) is not None:
-                _provenance(cur, title_id, fld, source, details.get(fld))
+            "SELECT DISTINCT pe.id FROM title_people tp JOIN people pe ON pe.id = tp.person_id "
+            "WHERE tp.title_id = %s AND pe.tmdb_id IS NOT NULL AND pe.enriched_at IS NULL",
+            (title_id,))
+        person_ids = [str(r["id"]) for r in cur.fetchall()]
+        for pid_ in person_ids:
+            cur.execute(
+                "INSERT INTO background_jobs (kind, payload) VALUES ('enrich_person', %s::jsonb)",
+                (json.dumps({"person_id": pid_}),))
 
-        # genres
-        for gname in details.get("genres", []):
-            if gname:
-                gid = _upsert_genre(cur, gname)
-                cur.execute(
-                    "INSERT INTO title_genres (title_id, genre_id) VALUES (%s, %s) "
-                    "ON CONFLICT DO NOTHING", (title_id, gid))
+    return {"status": "enriched", "source": source, "tmdb_id": details.get("tmdb_id"),
+            "people_queued": len(person_ids)}
 
-        # cast + crew
-        for c in details.get("cast", []):
-            pid_ = _upsert_person(cur, c)
-            if pid_:
-                cur.execute(
-                    "INSERT INTO title_people (title_id, person_id, role, character, ord) "
-                    "VALUES (%s, %s, 'cast', %s, %s) ON CONFLICT (title_id, person_id, role) "
-                    "DO UPDATE SET character = EXCLUDED.character, ord = EXCLUDED.ord",
-                    (title_id, pid_, c.get("character"), c.get("ord", 999)))
-        for c in details.get("crew", []):
-            pid_ = _upsert_person(cur, c)
-            if pid_:
-                cur.execute(
-                    "INSERT INTO title_people (title_id, person_id, role, job) "
-                    "VALUES (%s, %s, 'crew', %s) ON CONFLICT (title_id, person_id, role) "
-                    "DO UPDATE SET job = EXCLUDED.job",
-                    (title_id, pid_, c.get("job")))
 
+def enrich_person(person_id: str) -> dict:
+    """Enrich a person's biography (all languages) + birth info via TMDB."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id, name, tmdb_id FROM people WHERE id = %s", (person_id,))
+        person = cur.fetchone()
+    if not person:
+        return {"status": "not_found"}
+
+    providers = runtime.capability_providers("person_details")
+    if not providers:
+        return {"status": "no_provider"}
+
+    details = None
+    source = None
+    for pid in providers:
+        try:
+            plugin = runtime.get_plugin(pid)
+        except Exception:  # noqa: BLE001
+            continue
+        if not getattr(plugin, "configured", True):
+            continue
+        tmdb_id = person.get("tmdb_id")
+        if not tmdb_id and hasattr(plugin, "search_person"):
+            results = plugin.search_person(person["name"])
+            if results:
+                tmdb_id = results[0].get("id")
+        if not tmdb_id:
+            continue
+        details = plugin.person_details(tmdb_id)
+        if details:
+            source = pid
+            break
+
+    if not details:
+        # mark as attempted so we don't retry on every page open
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("UPDATE people SET enriched_at = now() WHERE id = %s", (person_id,))
+        return {"status": "no_match"}
+
+    with connection() as conn, conn.cursor() as cur:
+        apply_person_details(cur, person_id, details, source)
     return {"status": "enriched", "source": source, "tmdb_id": details.get("tmdb_id")}

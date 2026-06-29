@@ -32,6 +32,14 @@ single-container deployment (nginx + Gunicorn + worker + Postgres).
 - **TMDB enrichment (plugin)** — posters, genres, cast and year. Configurable API key;
   the app runs fine without one. Only public title names are sent to TMDB — **never** any
   watch data.
+- **Source-native metadata** — each title/person keeps metadata from the source it came
+  from (Netflix from Netflix, Plex from Plex, etc.); TMDB only fills the gaps. Missing
+  metadata is fetched **lazily** — when a title is opened or scrolled into view.
+- **Multilingual content & UI** — pick from **English, Nederlands, Français, Español,
+  Italiano, Deutsch** via the flag language picker. UI strings and title/person
+  biographies are stored and shown per language (with English fallback).
+- **Clickable cast & crew** — every person opens a profile page with a short biography
+  (in your language) and every title from any source they appear in.
 - **Fast overviews at any scale** — a precomputed `watch_daily_agg` rollup keeps trends,
   heatmaps and per-platform charts fast across years of history.
 - **Modern, responsive UI** — poster grids, charts (line/stacked-bar/horizontal-bar),

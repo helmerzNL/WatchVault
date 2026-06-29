@@ -36,7 +36,7 @@ def create_app() -> Flask:
     app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB uploads
 
     # Blueprints
-    from .api import meta, stats, search, ingest, profiles, plugins, sync
+    from .api import meta, stats, search, ingest, profiles, plugins, sync, people
     from .auth import routes as auth_routes
 
     app.register_blueprint(meta.bp)
@@ -47,6 +47,7 @@ def create_app() -> Flask:
     app.register_blueprint(profiles.bp)
     app.register_blueprint(plugins.bp)
     app.register_blueprint(sync.bp)
+    app.register_blueprint(people.bp)
 
     @app.errorhandler(HTTPException)
     def handle_http(exc: HTTPException):

@@ -24,6 +24,22 @@ def _parse_iso(value: str | None) -> dt.datetime | None:
         return None
 
 
+def _movie_metadata(item: dict) -> dict:
+    """Capture Jellyfin-native metadata for a movie (cast/crew from People)."""
+    people = item.get("People") or []
+    cast = [{"name": p.get("Name"), "character": p.get("Role"), "ord": i}
+            for i, p in enumerate(people) if p.get("Type") == "Actor" and p.get("Name")]
+    crew = [{"name": p.get("Name"), "job": p.get("Type")}
+            for p in people if p.get("Type") in ("Director", "Writer") and p.get("Name")]
+    return {
+        "overview": item.get("Overview"),
+        "original_title": item.get("OriginalTitle") or None,
+        "genres": item.get("Genres") or [],
+        "cast": cast[:15],
+        "crew": crew,
+    }
+
+
 class JellyfinAdapter(SourceAdapter):
     id = "jellyfin_api"
     ingest_type = "api"
@@ -70,7 +86,7 @@ class JellyfinAdapter(SourceAdapter):
             "IsPlayed": "true",
             "Recursive": "true",
             "IncludeItemTypes": "Movie,Episode",
-            "Fields": "UserData,ProductionYear,RunTimeTicks",
+            "Fields": "UserData,ProductionYear,RunTimeTicks,Genres,Overview,People,OriginalTitle",
             "SortBy": "DatePlayed",
             "SortOrder": "Ascending",
             "Limit": 5000,
@@ -126,6 +142,8 @@ class JellyfinAdapter(SourceAdapter):
                     episode=item.get("IndexNumber"),
                     episode_name=item.get("Name"),
                     duration_seconds=duration_s, completed=bool(ud.get("Played")),
+                    metadata={"overview": item.get("Overview"),
+                              "genres": item.get("Genres") or []},
                     raw={"source": "jellyfin", "id": item.get("Id")},
                 ))
             else:
@@ -135,6 +153,7 @@ class JellyfinAdapter(SourceAdapter):
                     clean_title=item.get("Name", ""),
                     year=item.get("ProductionYear"),
                     duration_seconds=duration_s, completed=bool(ud.get("Played")),
+                    metadata=_movie_metadata(item),
                     raw={"source": "jellyfin", "id": item.get("Id")},
                 ))
         return events, {"since": max_played.isoformat()}

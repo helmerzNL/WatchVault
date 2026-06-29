@@ -10,12 +10,13 @@ import { Imports } from "./pages/Imports";
 import { Profiles } from "./pages/Profiles";
 import { Settings } from "./pages/Settings";
 import { TitleDetail } from "./pages/TitleDetail";
+import { Person } from "./pages/Person";
 
 export function App() {
   const { ready, user } = useApp();
 
   if (!ready) {
-    return <div className="center-screen"><Loading label="Starting WatchVault…" /></div>;
+    return <div className="center-screen"><Loading /></div>;
   }
 
   if (!user) {
@@ -29,6 +30,7 @@ export function App() {
         <Route path="/overviews" element={<Overviews />} />
         <Route path="/search" element={<Search />} />
         <Route path="/title/:id" element={<TitleDetail />} />
+        <Route path="/person/:id" element={<Person />} />
         <Route path="/imports" element={<Imports />} />
         <Route path="/profiles" element={<Profiles />} />
         <Route path="/settings" element={<Settings />} />

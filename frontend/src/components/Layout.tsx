@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useApp } from "../lib/app";
+import { useT } from "../lib/i18n";
+import { LanguagePicker } from "./LanguagePicker";
 import { initials } from "../lib/format";
 import {
   IconChart, IconChevron, IconHome, IconImport, IconSearch, IconSettings, IconUsers,
@@ -8,9 +10,10 @@ import {
 
 function ProfileSwitcher() {
   const { profiles, scope, setScope, user } = useApp();
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const current = scope === "all" ? null : profiles.find((p) => p.id === scope);
-  const label = current ? current.display_name : "Household";
+  const label = current ? current.display_name : t("common.household");
 
   return (
     <div style={{ position: "relative" }}>
@@ -31,8 +34,8 @@ function ProfileSwitcher() {
             <button className="menu-row" data-active={scope === "all"} onClick={() => { setScope("all"); setOpen(false); }}>
               <span className="avatar" style={{ width: 30, height: 30, fontSize: 13 }}>★</span>
               <span className="col" style={{ gap: 0, alignItems: "flex-start" }}>
-                <strong>Household</strong>
-                <span className="caption">Everyone combined</span>
+                <strong>{t("common.household")}</strong>
+                <span className="caption">{t("common.everyoneCombined")}</span>
               </span>
             </button>
             {profiles.map((p) => (
@@ -42,8 +45,8 @@ function ProfileSwitcher() {
                   {p.avatar ? <img src={p.avatar} alt="" /> : initials(p.display_name)}
                 </span>
                 <span className="col" style={{ gap: 0, alignItems: "flex-start" }}>
-                  <strong>{p.display_name}{p.id === user?.id ? " (you)" : ""}</strong>
-                  <span className="caption">{p.events} events</span>
+                  <strong>{p.display_name}{p.id === user?.id ? ` (${t("common.you")})` : ""}</strong>
+                  <span className="caption">{p.events} {t("common.events")}</span>
                 </span>
               </button>
             ))}
@@ -55,16 +58,17 @@ function ProfileSwitcher() {
 }
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: IconHome, end: true },
-  { to: "/overviews", label: "Overviews", icon: IconChart },
-  { to: "/search", label: "Search", icon: IconSearch },
-  { to: "/imports", label: "Imports", icon: IconImport },
-  { to: "/profiles", label: "Profiles", icon: IconUsers },
-  { to: "/settings", label: "Settings", icon: IconSettings },
+  { to: "/", key: "nav.dashboard", icon: IconHome, end: true },
+  { to: "/overviews", key: "nav.overviews", icon: IconChart },
+  { to: "/search", key: "nav.search", icon: IconSearch },
+  { to: "/imports", key: "nav.imports", icon: IconImport },
+  { to: "/profiles", key: "nav.profiles", icon: IconUsers },
+  { to: "/settings", key: "nav.settings", icon: IconSettings },
 ];
 
 export function Layout() {
   const loc = useLocation();
+  const { t } = useT();
   return (
     <div className="app-shell">
       <header className="topbar glass">
@@ -75,10 +79,11 @@ export function Layout() {
         <nav className="nav-links">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end}
-              className={({ isActive }) => (isActive ? "active" : "")}>{n.label}</NavLink>
+              className={({ isActive }) => (isActive ? "active" : "")}>{t(n.key)}</NavLink>
           ))}
         </nav>
         <div className="spacer" />
+        <LanguagePicker />
         <ProfileSwitcher />
       </header>
 
@@ -92,7 +97,7 @@ export function Layout() {
           return (
             <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? "active" : "")}>
               <Icon />
-              <span>{n.label}</span>
+              <span>{t(n.key)}</span>
             </NavLink>
           );
         })}

@@ -3,6 +3,10 @@
 Privacy: only public title/person *search* terms are sent to TMDB — never any
 personal watch history. The app runs fine without an API key configured (every
 method returns empty and enrichment is skipped).
+
+Multilingual: details are fetched with ``append_to_response=translations`` so a
+single request yields the overview/biography in every language WatchVault
+supports (en, nl, fr, es, it, de).
 """
 from __future__ import annotations
 
@@ -12,6 +16,9 @@ import requests
 
 API_BASE = "https://api.themoviedb.org/3"
 IMAGE_BASE = "https://image.tmdb.org/t/p"
+
+# ISO-639-1 codes the app exposes in its language picker.
+TARGET_LANGS = ["en", "nl", "fr", "es", "it", "de"]
 
 
 class Plugin:
@@ -51,18 +58,44 @@ class Plugin:
             return []
         return data.get("results", [])
 
+    def search_person(self, name: str) -> list[dict]:
+        data = self._get("/search/person", {"query": name, "include_adult": "false"})
+        if not data:
+            return []
+        return data.get("results", [])
+
     def movie_details(self, tmdb_id: int) -> Optional[dict]:
-        data = self._get(f"/movie/{tmdb_id}", {"append_to_response": "credits"})
+        data = self._get(f"/movie/{tmdb_id}",
+                         {"append_to_response": "credits,translations"})
         return self._normalize(data, "movie") if data else None
 
     def tv_details(self, tmdb_id: int) -> Optional[dict]:
-        data = self._get(f"/tv/{tmdb_id}", {"append_to_response": "credits"})
+        data = self._get(f"/tv/{tmdb_id}",
+                         {"append_to_response": "credits,translations"})
         return self._normalize(data, "series") if data else None
 
     def person_details(self, tmdb_id: int) -> Optional[dict]:
-        return self._get(f"/person/{tmdb_id}")
+        data = self._get(f"/person/{tmdb_id}", {"append_to_response": "translations"})
+        return self._normalize_person(data) if data else None
 
     # ── Normalization to the central model shape ───────────────────────────
+
+    @staticmethod
+    def _lang_map(data: dict, base_lang: str, field: str = "overview") -> dict:
+        """Collect a {lang: text} map from append_to_response=translations."""
+        out: dict[str, str] = {}
+        base = data.get(field)
+        if base and base.strip() and base_lang in TARGET_LANGS:
+            out[base_lang] = base.strip()
+        translations = (data.get("translations") or {}).get("translations", [])
+        for tr in translations:
+            lang = tr.get("iso_639_1")
+            if lang not in TARGET_LANGS or lang in out:
+                continue
+            text = (tr.get("data") or {}).get(field)
+            if text and text.strip():
+                out[lang] = text.strip()
+        return out
 
     def _normalize(self, data: dict, kind: str) -> dict:
         credits = data.get("credits", {})
@@ -84,11 +117,14 @@ class Plugin:
         else:
             year = (data.get("release_date") or "")[:4]
             runtime = data.get("runtime")
+        base_lang = (self.language or "en")[:2]
+        overviews = self._lang_map(data, base_lang)
         return {
             "tmdb_id": data.get("id"),
             "title": data.get("title") or data.get("name"),
             "original_title": data.get("original_title") or data.get("original_name"),
-            "overview": data.get("overview"),
+            "overview": overviews.get("en") or data.get("overview"),
+            "overviews": overviews,
             "year": int(year) if year.isdigit() else None,
             "runtime_minutes": runtime,
             "poster_path": data.get("poster_path"),
@@ -97,4 +133,21 @@ class Plugin:
             "imdb_id": data.get("imdb_id"),
             "cast": cast,
             "crew": crew,
+            "authoritative": True,
+        }
+
+    def _normalize_person(self, data: dict) -> dict:
+        base_lang = (self.language or "en")[:2]
+        biographies = self._lang_map(data, base_lang, field="biography")
+        return {
+            "tmdb_id": data.get("id"),
+            "name": data.get("name"),
+            "biography": biographies.get("en") or data.get("biography"),
+            "biographies": biographies,
+            "birthday": data.get("birthday") or None,
+            "deathday": data.get("deathday") or None,
+            "place_of_birth": data.get("place_of_birth"),
+            "known_for": data.get("known_for_department"),
+            "also_known_as": data.get("also_known_as") or [],
+            "profile_path": data.get("profile_path"),
         }

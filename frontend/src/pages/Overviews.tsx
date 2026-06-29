@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
+import { useT, useGenre } from "../lib/i18n";
 import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { TrendArea, StackedBars, HBars } from "../components/charts";
@@ -24,6 +26,7 @@ function Seg<T extends string>({ value, onChange, options }: {
 }
 
 function HoursTrend({ scope }: { scope: string }) {
+  const { t } = useT();
   const [gran, setGran] = useState<Gran>("month");
   const { data, loading, error, reload } = useFetch<any[]>(
     () => api.get("/stats/trend", { profile: scope, granularity: gran }), [scope, gran]);
@@ -34,18 +37,19 @@ function HoursTrend({ scope }: { scope: string }) {
   })), [data, gran]);
 
   return (
-    <Section title="Watch time over time"
+    <Section title={t("overviews.watchTimeOverTime")}
       right={<Seg value={gran} onChange={setGran} options={[
-        { value: "day", label: "Day" }, { value: "week", label: "Week" }, { value: "month", label: "Month" }]} />}>
+        { value: "day", label: t("overviews.day") }, { value: "week", label: t("overviews.week") }, { value: "month", label: t("overviews.month") }]} />}>
       <div className="card">
         {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
-          series.length ? <TrendArea data={series} /> : <p className="muted">No data in this range.</p>}
+          series.length ? <TrendArea data={series} /> : <p className="muted">{t("overviews.noDataRange")}</p>}
       </div>
     </Section>
   );
 }
 
 function PlatformBreakdown({ scope }: { scope: string }) {
+  const { t } = useT();
   const [period, setPeriod] = useState<"month" | "year">("month");
   const { data, loading, error, reload } = useFetch<any[]>(
     () => api.get("/stats/by-platform", { profile: scope, period }), [scope, period]);
@@ -66,9 +70,9 @@ function PlatformBreakdown({ scope }: { scope: string }) {
   }, [data, period]);
 
   return (
-    <Section title="Per platform"
+    <Section title={t("overviews.perPlatform")}
       right={<Seg value={period} onChange={setPeriod} options={[
-        { value: "month", label: "Monthly" }, { value: "year", label: "Yearly" }]} />}>
+        { value: "month", label: t("overviews.monthly") }, { value: "year", label: t("overviews.yearly") }]} />}>
       <div className="card">
         {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
           rows.length ? (
@@ -83,13 +87,14 @@ function PlatformBreakdown({ scope }: { scope: string }) {
                 ))}
               </div>
             </>
-          ) : <p className="muted">No platform data yet.</p>}
+          ) : <p className="muted">{t("overviews.noPlatformData")}</p>}
       </div>
     </Section>
   );
 }
 
 function DailyHeatmap({ scope }: { scope: string }) {
+  const { t } = useT();
   const years = useMemo(() => {
     const y = new Date().getFullYear();
     return [y, y - 1, y - 2];
@@ -99,7 +104,7 @@ function DailyHeatmap({ scope }: { scope: string }) {
     () => api.get("/stats/heatmap", { profile: scope, year }), [scope, year]);
 
   return (
-    <Section title="Daily activity"
+    <Section title={t("overviews.dailyActivity")}
       right={<Seg value={String(year)} onChange={(v) => setYear(Number(v))}
         options={years.map((y) => ({ value: String(y), label: String(y) }))} />}>
       <div className="card" style={{ overflowX: "auto" }}>
@@ -111,44 +116,48 @@ function DailyHeatmap({ scope }: { scope: string }) {
 }
 
 function MonthlyTitles({ scope }: { scope: string }) {
+  const { t } = useT();
   const [month, setMonth] = useState(monthKey(new Date()));
   const { data, loading, error, reload } = useFetch<any[]>(
     () => api.get("/stats/month", { profile: scope, month }), [scope, month]);
 
   return (
-    <Section title="Watched per month"
+    <Section title={t("overviews.watchedPerMonth")}
       right={<input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
         style={{ width: "auto", minHeight: 36, padding: "6px 10px" }} />}>
       {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
         data && data.length ? (
           <div className="poster-grid">
-            {data.map((t) => (
-              <Poster key={t.id} to={`/title/${t.id}`} poster={t.poster} title={t.title} kind={t.kind}
-                subtitle={t.kind === "movie" ? `${t.year || ""}` : `${t.episodes} ep · ${fmtHours(t.hours)}`}
-                badge={t.kind === "movie" ? "Film" : "Series"} />
+            {data.map((t2) => (
+              <Poster key={t2.id} to={`/title/${t2.id}`} poster={t2.poster} title={t2.title} kind={t2.kind}
+                enrichId={t2.id}
+                subtitle={t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours)}`}
+                badge={t2.kind === "movie" ? t("common.film") : t("common.series")} />
             ))}
           </div>
-        ) : <p className="muted">Nothing watched in {monthLabel(month)}.</p>}
+        ) : <p className="muted">{t("overviews.nothingIn", { month: monthLabel(month) })}</p>}
     </Section>
   );
 }
 
 function GenreActor({ scope }: { scope: string }) {
+  const { t } = useT();
+  const tGenre = useGenre();
   const genre = useFetch<any[]>(() => api.get("/stats/by-genre", { profile: scope }), [scope]);
   const actor = useFetch<any[]>(() => api.get("/stats/by-actor", { profile: scope, limit: 12 }), [scope]);
 
-  const genreData = (genre.data || []).slice(0, 10).map((g) => ({ label: g.genre, value: g.hours }));
+  const genreData = (genre.data || []).slice(0, 10).map((g) => ({ label: tGenre(g.genre), value: g.hours }));
 
   return (
     <div className="grid-2">
-      <Section title="Time per genre">
+      <Section title={t("overviews.timePerGenre")}>
         <div className="card">
           {genre.loading ? <Loading /> :
             genreData.length ? <HBars data={genreData} height={Math.max(220, genreData.length * 30)} /> :
-              <p className="muted">No genre data yet — enrich titles with TMDB in Settings.</p>}
+              <p className="muted">{t("overviews.noGenreData")}</p>}
         </div>
       </Section>
-      <Section title="Time per actor">
+      <Section title={t("overviews.timePerActor")}>
         <div className="card">
           {actor.loading ? <Loading /> :
             actor.data && actor.data.length ? (
@@ -156,7 +165,7 @@ function GenreActor({ scope }: { scope: string }) {
                 {actor.data.map((a, i) => {
                   const maxH = Math.max(...actor.data!.map((x) => x.hours), 1);
                   return (
-                    <div key={a.id} className="row" style={{ gap: 12 }}>
+                    <Link key={a.id} to={`/person/${a.id}`} className="row" style={{ gap: 12, color: "inherit", textDecoration: "none" }}>
                       <span className="avatar" style={{ width: 34, height: 34, fontSize: 12 }}>
                         {a.profile ? <img src={a.profile} alt="" /> : i + 1}
                       </span>
@@ -165,11 +174,11 @@ function GenreActor({ scope }: { scope: string }) {
                           <span className="caption">{fmtHours(a.hours)}</span></div>
                         <div className="bar-track"><div className="bar-fill" style={{ width: `${(a.hours / maxH) * 100}%` }} /></div>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
-            ) : <p className="muted">No cast data yet — enrich titles with TMDB in Settings.</p>}
+            ) : <p className="muted">{t("overviews.noCastData")}</p>}
         </div>
       </Section>
     </div>
@@ -178,9 +187,10 @@ function GenreActor({ scope }: { scope: string }) {
 
 export function Overviews() {
   const { scope } = useApp();
+  const { t } = useT();
   return (
     <>
-      <h1 className="large-title" style={{ marginBottom: 8 }}>Overviews</h1>
+      <h1 className="large-title" style={{ marginBottom: 8 }}>{t("overviews.title")}</h1>
       <HoursTrend scope={scope} />
       <DailyHeatmap scope={scope} />
       <PlatformBreakdown scope={scope} />
