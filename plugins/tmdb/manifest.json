@@ -1,0 +1,14 @@
+{
+  "id": "tmdb",
+  "name": "TMDB",
+  "version": "1.0.0",
+  "kind": "metadata-provider",
+  "description": "Enriches titles with posters, genres, cast and release year from The Movie Database. Only public title queries are sent — never personal watch data.",
+  "capabilities": ["search", "movie_details", "tv_details", "person_details"],
+  "settings": {
+    "language": {"type": "string", "default": "en-US", "label": "Metadata language"}
+  },
+  "secrets": {
+    "api_key": {"type": "string", "label": "TMDB API key (v3)"}
+  }
+}

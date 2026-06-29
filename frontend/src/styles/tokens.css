@@ -1,0 +1,81 @@
+/* ── WatchVault design tokens ───────────────────────────────────────────────
+   Semantic tokens only — components never hard-code raw colors. Appearance
+   (Light/Dark/System), accent personalization and glass materials all flow
+   from here, per the zbonline design framework. */
+
+:root {
+  /* Light (default) */
+  --bg: #f5f5f7;
+  --bg-elev: #ffffff;
+  --surface: rgba(255, 255, 255, 0.62);
+  --surface-strong: rgba(255, 255, 255, 0.85);
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #8e8e93;
+  --hairline: rgba(0, 0, 0, 0.10);
+  --hairline-strong: rgba(0, 0, 0, 0.16);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.08);
+
+  /* Accent — overridable per user (set on :root at runtime) */
+  --accent: #0a84ff;
+  --accent-hover: color-mix(in srgb, var(--accent) 86%, black);
+  --accent-subtle: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-text: #ffffff;
+
+  /* Glass material */
+  --glass-blur: 20px;
+  --glass-border: rgba(255, 255, 255, 0.35);
+
+  /* Spacing (8pt grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius */
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --bg-elev: #1c1c1e;
+  --surface: rgba(28, 28, 30, 0.58);
+  --surface-strong: rgba(28, 28, 30, 0.9);
+  --text: #f5f5f7;
+  --text-secondary: #aeaeb2;
+  --text-tertiary: #8e8e93;
+  --hairline: rgba(255, 255, 255, 0.12);
+  --hairline-strong: rgba(255, 255, 255, 0.20);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  color-scheme: dark;
+}
+
+/* System mode (no explicit data-theme) follows the OS */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #000000;
+    --bg-elev: #1c1c1e;
+    --surface: rgba(28, 28, 30, 0.58);
+    --surface-strong: rgba(28, 28, 30, 0.9);
+    --text: #f5f5f7;
+    --text-secondary: #aeaeb2;
+    --text-tertiary: #8e8e93;
+    --hairline: rgba(255, 255, 255, 0.12);
+    --hairline-strong: rgba(255, 255, 255, 0.20);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.4);
+    --glass-border: rgba(255, 255, 255, 0.14);
+    color-scheme: dark;
+  }
+}

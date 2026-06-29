@@ -1,0 +1,7 @@
+{
+  "events": [
+    { "title": "Tegenlicht", "type": "series", "season": 43, "episode": 5, "watched_at": "2025-03-01T20:30:00", "duration_minutes": 50, "progress": 100 },
+    { "title": "Flikken Maastricht", "type": "series", "season": 18, "episode": 2, "watched_at": "2025-03-04T21:00:00", "duration_minutes": 48, "progress": 100 },
+    { "title": "De Oost", "type": "movie", "watched_at": "2025-03-08T20:00:00", "duration_minutes": 137, "progress": 88 }
+  ]
+}

@@ -1,0 +1,7 @@
+Flask>=3.0,<4
+gunicorn>=22.0
+psycopg[binary,pool]>=3.2
+PyJWT>=2.9
+webauthn>=2.2,<3
+requests>=2.32
+python-dotenv>=1.0
