@@ -22,7 +22,7 @@ single-container deployment (nginx + Gunicorn + worker + Postgres).
   implementing one interface (`import_file()` / `fetch_history()`). Adding a provider does
   not touch the core. Ships with:
   - **Netflix** — official "Viewing activity → Download all" CSV importer.
-  - **Plex / Jellyfin** — direct API sync (watch history), on-demand.
+  - **Plex / Jellyfin / Trakt** — direct API sync (watch history), on-demand.
   - **Generic CSV/JSON** — for HBO Max, SkyShowtime, Videoland, NLZiet, Disney+, Prime…
 - **Central, normalized model** — titles (with seasons/episodes), genres, cast/crew,
   watch events, providers. Titles carry an optional `external_ids` field so a title can
@@ -147,7 +147,13 @@ Passkeys require a secure context — use `localhost` for local testing or HTTPS
 **Imports → Import a file**, pick *Netflix*, choose the profile, upload the CSV.
 
 **Plex / Jellyfin** — **Imports → API sync connections → Add**, enter the server URL and an
-API token (`X-Plex-Token` / Jellyfin API key), then **Sync** on demand.
+API token (`X-Plex-Token` / Jellyfin API key). Optionally click **Load libraries** and tick
+which libraries to include (leave empty to sync all), then **Sync** on demand.
+
+**Trakt** — create an app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications)
+and copy its **Client ID**. In **Imports → API sync connections → Add**, pick *Trakt*, enter the
+Client ID and your username (a public profile needs nothing more; a private one also needs an
+OAuth access token, with username `me`). Then **Sync** on demand.
 
 **Other services** — export your data (manual CSV or a GDPR/data request) and import it via
 the *Generic CSV/JSON* provider. The generic adapter auto-detects common column names

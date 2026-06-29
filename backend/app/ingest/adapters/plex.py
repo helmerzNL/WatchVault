@@ -19,6 +19,40 @@ class PlexAdapter(SourceAdapter):
     id = "plex_api"
     ingest_type = "api"
     display_name = "Plex"
+    config_fields = [
+        {"key": "base_url", "label": "Server URL", "type": "url", "required": True,
+         "placeholder": "http://192.168.1.10:32400"},
+        {"key": "token", "label": "Plex token", "type": "password", "required": True,
+         "placeholder": "X-Plex-Token", "help": "Settings → Account → API token (X-Plex-Token)."},
+        {"key": "account_id", "label": "Account ID", "type": "text", "required": False,
+         "placeholder": "Restrict to one Plex account (optional)"},
+        {"key": "library_ids", "label": "Libraries", "type": "library_select", "required": False,
+         "help": "Only sync watch history from these libraries. Leave empty for all."},
+    ]
+
+    def _section_id(self, config: dict):
+        sid = config.get("library_ids")
+        if not sid:
+            return None
+        if isinstance(sid, str):
+            sid = [sid]
+        return {str(s) for s in sid if str(s).strip()}
+
+    def list_libraries(self, config: dict) -> list[dict]:
+        base = (config.get("base_url") or "").rstrip("/")
+        token = config.get("token")
+        if not base or not token:
+            raise ValueError("Plex connection requires base_url and token")
+        resp = requests.get(f"{base}/library/sections",
+                            params={"X-Plex-Token": token}, timeout=20,
+                            headers={"Accept": "application/xml"})
+        resp.raise_for_status()
+        root = ET.fromstring(resp.content)
+        out = []
+        for d in root.findall("Directory"):
+            out.append({"id": d.get("key"), "name": d.get("title", "Library"),
+                        "type": d.get("type", "")})
+        return out
 
     def fetch_history(self, config: dict, cursor: dict) -> tuple[list[NormalizedEvent], dict]:
         base = (config.get("base_url") or "").rstrip("/")
@@ -26,6 +60,7 @@ class PlexAdapter(SourceAdapter):
         if not base or not token:
             raise ValueError("Plex connection requires base_url and token")
         since = int(cursor.get("since", 0))
+        sections = self._section_id(config)
 
         params = {
             "X-Plex-Token": token,
@@ -45,6 +80,8 @@ class PlexAdapter(SourceAdapter):
         events: list[NormalizedEvent] = []
         max_viewed = since
         for video in root.findall("Video"):
+            if sections and video.get("librarySectionID") not in sections:
+                continue
             viewed_at = int(video.get("viewedAt", "0"))
             if viewed_at <= since:
                 continue

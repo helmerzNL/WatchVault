@@ -28,6 +28,63 @@ class JellyfinAdapter(SourceAdapter):
     id = "jellyfin_api"
     ingest_type = "api"
     display_name = "Jellyfin"
+    config_fields = [
+        {"key": "base_url", "label": "Server URL", "type": "url", "required": True,
+         "placeholder": "http://192.168.1.10:8096"},
+        {"key": "api_key", "label": "API key", "type": "password", "required": True,
+         "placeholder": "Jellyfin API key", "help": "Dashboard → Advanced → API Keys."},
+        {"key": "user_id", "label": "User ID", "type": "text", "required": True,
+         "placeholder": "Jellyfin user ID", "help": "The user whose history to sync."},
+        {"key": "library_ids", "label": "Libraries", "type": "library_select", "required": False,
+         "help": "Only sync watch history from these libraries. Leave empty for all."},
+    ]
+
+    def _library_ids(self, config: dict) -> list[str]:
+        lib = config.get("library_ids")
+        if not lib:
+            return []
+        if isinstance(lib, str):
+            lib = [lib]
+        return [str(s) for s in lib if str(s).strip()]
+
+    def list_libraries(self, config: dict) -> list[dict]:
+        base = (config.get("base_url") or "").rstrip("/")
+        api_key = config.get("api_key")
+        user_id = config.get("user_id")
+        if not base or not api_key or not user_id:
+            raise ValueError("Jellyfin connection requires base_url, api_key and user_id")
+        resp = requests.get(
+            f"{base}/Users/{user_id}/Views",
+            headers={"X-Emby-Token": api_key, "Accept": "application/json"},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        out = []
+        for v in resp.json().get("Items", []):
+            out.append({"id": v.get("Id"), "name": v.get("Name", "Library"),
+                        "type": v.get("CollectionType", "")})
+        return out
+
+    def _fetch_items(self, base: str, api_key: str, user_id: str, parent_id: str | None) -> list[dict]:
+        params = {
+            "IsPlayed": "true",
+            "Recursive": "true",
+            "IncludeItemTypes": "Movie,Episode",
+            "Fields": "UserData,ProductionYear,RunTimeTicks",
+            "SortBy": "DatePlayed",
+            "SortOrder": "Ascending",
+            "Limit": 5000,
+        }
+        if parent_id:
+            params["ParentId"] = parent_id
+        resp = requests.get(
+            f"{base}/Users/{user_id}/Items",
+            params=params,
+            headers={"X-Emby-Token": api_key, "Accept": "application/json"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("Items", [])
 
     def fetch_history(self, config: dict, cursor: dict) -> tuple[list[NormalizedEvent], dict]:
         base = (config.get("base_url") or "").rstrip("/")
@@ -37,22 +94,18 @@ class JellyfinAdapter(SourceAdapter):
             raise ValueError("Jellyfin connection requires base_url, api_key and user_id")
         since = _parse_iso(cursor.get("since")) or dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
 
-        resp = requests.get(
-            f"{base}/Users/{user_id}/Items",
-            params={
-                "IsPlayed": "true",
-                "Recursive": "true",
-                "IncludeItemTypes": "Movie,Episode",
-                "Fields": "UserData,ProductionYear,RunTimeTicks",
-                "SortBy": "DatePlayed",
-                "SortOrder": "Ascending",
-                "Limit": 5000,
-            },
-            headers={"X-Emby-Token": api_key, "Accept": "application/json"},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        items = resp.json().get("Items", [])
+        library_ids = self._library_ids(config)
+        if library_ids:
+            items, seen = [], set()
+            for pid in library_ids:
+                for it in self._fetch_items(base, api_key, user_id, pid):
+                    iid = it.get("Id")
+                    if iid in seen:
+                        continue
+                    seen.add(iid)
+                    items.append(it)
+        else:
+            items = self._fetch_items(base, api_key, user_id, None)
 
         events: list[NormalizedEvent] = []
         max_played = since

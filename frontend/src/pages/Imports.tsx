@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useApp } from "../lib/app";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
@@ -6,8 +6,12 @@ import { Loading, Section } from "../components/ui";
 import { IconImport, IconRefresh, IconPlus, IconCheck } from "../components/icons";
 import { fmtDate } from "../lib/format";
 
+interface ConfigField {
+  key: string; label: string; type?: string; placeholder?: string; required?: boolean; help?: string;
+}
 interface Provider {
   id: string; key: string; name: string; ingest_type: string; adapter: string; color?: string;
+  config_fields?: ConfigField[];
 }
 
 function FileImport({ providers, onDone }: { providers: Provider[]; onDone: () => void }) {
@@ -79,19 +83,49 @@ function Connections({ providers, connections, reload }: {
   const [adding, setAdding] = useState(false);
   const [provider, setProvider] = useState(apiProviders[0]?.key || "");
   const [name, setName] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [token, setToken] = useState("");
+  const [config, setConfig] = useState<Record<string, any>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [libs, setLibs] = useState<{ id: string; name: string; type?: string }[] | null>(null);
+  const [libBusy, setLibBusy] = useState(false);
+
+  const selected = apiProviders.find((p) => p.key === provider);
+  const fields = selected?.config_fields || [];
+
+  function pickProvider(key: string) {
+    setProvider(key);
+    setConfig({});
+    setLibs(null);
+  }
+
+  function toggleLib(key: string, id: string) {
+    setConfig((c) => {
+      const cur: string[] = Array.isArray(c[key]) ? c[key] : [];
+      return { ...c, [key]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] };
+    });
+  }
+
+  async function loadLibraries() {
+    setLibBusy(true);
+    try {
+      const res = await api.post("/connections/libraries", { provider, config });
+      setLibs(res.libraries || []);
+      if (!res.libraries?.length) toast("No libraries found for this server", "err");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Could not load libraries", "err");
+    } finally { setLibBusy(false); }
+  }
 
   async function create() {
+    const missing = fields.filter((f) => f.required && !String(config[f.key] ?? "").trim());
+    if (missing.length) {
+      toast(`Fill in: ${missing.map((f) => f.label).join(", ")}`, "err");
+      return;
+    }
     setBusy("create");
     try {
-      await api.post("/connections", {
-        provider, name: name || undefined,
-        config: { base_url: baseUrl, token },
-      });
+      await api.post("/connections", { provider, name: name || undefined, config });
       toast("Connection added");
-      setAdding(false); setName(""); setBaseUrl(""); setToken("");
+      setAdding(false); setName(""); setConfig({}); setLibs(null);
       reload();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Failed", "err");
@@ -129,7 +163,7 @@ function Connections({ providers, connections, reload }: {
         )}
       </div>
       <p className="caption" style={{ marginBottom: 16 }}>
-        Plex & Jellyfin expose official APIs — connect once and sync watch history on demand.
+        Plex, Jellyfin &amp; Trakt expose official APIs — connect once and sync watch history on demand.
       </p>
 
       {adding && (
@@ -137,23 +171,54 @@ function Connections({ providers, connections, reload }: {
           <div className="filters-grid" style={{ marginBottom: 12 }}>
             <div>
               <label>Service</label>
-              <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+              <select value={provider} onChange={(e) => pickProvider(e.target.value)}>
                 {apiProviders.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
               </select>
             </div>
             <div>
               <label>Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Living room Plex" />
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={selected ? `${selected.name} (household)` : "Connection name"} />
             </div>
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <label>Server URL</label>
-            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="http://192.168.1.10:32400" />
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <label>API token</label>
-            <input value={token} onChange={(e) => setToken(e.target.value)} placeholder="X-Plex-Token / Jellyfin API key" type="password" />
-          </div>
+          {fields.map((f) => (
+            f.type === "library_select" ? (
+              <div key={f.key} style={{ marginBottom: 12 }}>
+                <label>{f.label} (optional)</label>
+                <div className="row" style={{ gap: 8, marginBottom: libs ? 8 : 0 }}>
+                  <button className="btn-ghost btn-sm" disabled={libBusy} onClick={loadLibraries}>
+                    {libBusy ? "Loading…" : <><IconRefresh width={15} height={15} /> Load libraries</>}
+                  </button>
+                  {libs && <span className="caption">{(config[f.key]?.length || 0)} of {libs.length} selected</span>}
+                </div>
+                {libs && libs.length > 0 && (
+                  <div className="col" style={{ gap: 6 }}>
+                    {libs.map((lib) => {
+                      const sel: string[] = Array.isArray(config[f.key]) ? config[f.key] : [];
+                      return (
+                        <label key={lib.id} className="row" style={{ gap: 8, cursor: "pointer", fontWeight: 400 }}>
+                          <input type="checkbox" checked={sel.includes(lib.id)}
+                            onChange={() => toggleLib(f.key, lib.id)} style={{ width: "auto" }} />
+                          <span>{lib.name}{lib.type ? <span className="caption"> · {lib.type}</span> : null}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {f.help && <span className="caption" style={{ display: "block", marginTop: 4 }}>{f.help}</span>}
+              </div>
+            ) : (
+              <div key={f.key} style={{ marginBottom: 12 }}>
+                <label>{f.label}{f.required ? "" : " (optional)"}</label>
+                <input
+                  value={config[f.key] || ""}
+                  onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  type={f.type === "password" ? "password" : "text"}
+                />
+                {f.help && <span className="caption" style={{ display: "block", marginTop: 4 }}>{f.help}</span>}
+              </div>
+            )
+          ))}
           <button className="btn-primary" disabled={busy === "create"} onClick={create}>
             {busy === "create" ? "Saving…" : "Save connection"}
           </button>

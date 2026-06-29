@@ -20,11 +20,18 @@ bp = Blueprint("ingest", __name__, url_prefix="/api")
 @require_perm("catalog.read")
 def list_providers():
     rows = query_all("SELECT id, key, name, ingest_type, adapter, color FROM providers ORDER BY name")
-    return jsonify([
-        {"id": str(r["id"]), "key": r["key"], "name": r["name"],
-         "ingest_type": r["ingest_type"], "adapter": r["adapter"], "color": r["color"]}
-        for r in rows
-    ])
+    out = []
+    for r in rows:
+        try:
+            fields = get_adapter(r["adapter"]).config_fields
+        except KeyError:
+            fields = []
+        out.append({
+            "id": str(r["id"]), "key": r["key"], "name": r["name"],
+            "ingest_type": r["ingest_type"], "adapter": r["adapter"], "color": r["color"],
+            "config_fields": fields,
+        })
+    return jsonify(out)
 
 
 def _provider_by_key(key: str):
@@ -97,6 +104,23 @@ def list_connections():
          "last_status": r["last_status"]}
         for r in rows
     ])
+
+
+@bp.post("/connections/libraries")
+@require_perm("ingest.write")
+def discover_libraries():
+    """List the libraries available for a given provider + connection config,
+    so the user can pick which ones to sync before saving the connection."""
+    body = request.get_json(force=True, silent=True) or {}
+    provider = _provider_by_key(body.get("provider", ""))
+    if not provider:
+        return jsonify({"error": "unknown provider"}), 400
+    try:
+        adapter = get_adapter(provider["adapter"])
+        libraries = adapter.list_libraries(body.get("config") or {})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": f"could not load libraries: {exc}"}), 400
+    return jsonify({"libraries": libraries})
 
 
 @bp.post("/connections")

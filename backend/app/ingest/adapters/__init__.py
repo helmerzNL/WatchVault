@@ -7,6 +7,7 @@ from .generic import GenericAdapter
 from .jellyfin import JellyfinAdapter
 from .netflix import NetflixAdapter
 from .plex import PlexAdapter
+from .trakt import TraktAdapter
 
 _ADAPTERS: dict[str, SourceAdapter] = {}
 
@@ -15,7 +16,7 @@ def register(adapter: SourceAdapter) -> None:
     _ADAPTERS[adapter.id] = adapter
 
 
-for _a in (NetflixAdapter(), GenericAdapter(), PlexAdapter(), JellyfinAdapter()):
+for _a in (NetflixAdapter(), GenericAdapter(), PlexAdapter(), JellyfinAdapter(), TraktAdapter()):
     register(_a)
 
 
