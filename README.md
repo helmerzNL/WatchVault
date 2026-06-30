@@ -18,9 +18,58 @@ for *everything* the household watches — across every app and device.
 > open `http://<host>:7210`, register (first user becomes admin). See
 > [Quick start (Docker)](#quick-start-docker).
 
-Built to the [zbonline Technical Framework](https://wiki.zbonline.nl/nl/Projecten/Coding/technical-framework):
-passwordless passkeys, a plugin runtime, an offline-sync spine, an MCP server, and a
-single-container deployment (nginx + Gunicorn + worker + Postgres).
+Under the hood: passwordless passkeys, a plugin runtime, an offline-sync spine, an MCP
+server, and a single-container deployment (nginx + Gunicorn + worker + Postgres).
+
+---
+
+## Screenshots
+
+### Desktop
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="docs/screenshots/desktop/01-dashboard.png"><img src="docs/screenshots/desktop/01-dashboard.png" width="100%" alt="Dashboard"></a>
+      <br><sub><b>Dashboard</b> — Now playing, totals, trends &amp; per-platform split.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <a href="docs/screenshots/desktop/03-overviews.png"><img src="docs/screenshots/desktop/03-overviews.png" width="100%" alt="Overviews"></a>
+      <br><sub><b>Overviews</b> — monthly viewing, calendar heatmap, hours &amp; per-actor/genre.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <a href="docs/screenshots/desktop/04-search.jpg"><img src="docs/screenshots/desktop/04-search.jpg" width="100%" alt="Search"></a>
+      <br><sub><b>Search</b> — filter by title, genre, actor, platform or year.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="docs/screenshots/desktop/02-title-detail.jpg"><img src="docs/screenshots/desktop/02-title-detail.jpg" width="100%" alt="Title detail"></a>
+      <br><sub><b>Title detail</b> — seasons, episodes &amp; watch tracking.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <a href="docs/screenshots/desktop/08-film-detail.jpg"><img src="docs/screenshots/desktop/08-film-detail.jpg" width="100%" alt="Film detail"></a>
+      <br><sub><b>Film detail</b> — cast &amp; crew, watch dates, TMDB/Trakt sync.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <a href="docs/screenshots/desktop/05-settings.png"><img src="docs/screenshots/desktop/05-settings.png" width="100%" alt="Settings"></a>
+      <br><sub><b>Settings</b> — appearance, household, plugins &amp; Expert Mode.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="docs/screenshots/desktop/06-add-cinema.png"><img src="docs/screenshots/desktop/06-add-cinema.png" width="100%" alt="Add a cinema visit"></a>
+      <br><sub><b>Add a cinema visit</b> — search the film…</sub>
+    </td>
+    <td width="33%" valign="top">
+      <a href="docs/screenshots/desktop/07-cinema-date.png"><img src="docs/screenshots/desktop/07-cinema-date.png" width="100%" alt="Pick the date"></a>
+      <br><sub><b>…and pick the date</b> you watched it.</sub>
+    </td>
+    <td width="33%"></td>
+  </tr>
+</table>
+
+<sub>Click any thumbnail to view it full-size. Mobile screenshots coming soon.</sub>
 
 ---
 
