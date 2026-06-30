@@ -1,14 +1,15 @@
 // Small presentation helpers.
 
 export function fmtHours(h: number): string {
-  if (!h) return "0h";
-  if (h < 1) return `${Math.round(h * 60)}m`;
-  if (h < 10) return `${h.toFixed(1)}h`;
-  return `${Math.round(h)}h`;
+  const n = Number(h);
+  if (!n || Number.isNaN(n)) return "0h";
+  if (n < 1) return `${Math.round(n * 60)}m`;
+  if (n < 10) return `${n.toFixed(1)}h`;
+  return `${Math.round(n)}h`;
 }
 
 export function fmtNum(n: number): string {
-  return new Intl.NumberFormat().format(n ?? 0);
+  return new Intl.NumberFormat().format(Number(n) || 0);
 }
 
 export function fmtDate(iso: string): string {

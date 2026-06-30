@@ -88,7 +88,7 @@ def search():
              "poster": poster_url(r["poster_path"]),
              "overview": (r["overviews"] or {}).get(lang) or r["overview"],
              "events": int(r["events"]), "last_watched": r["last_watched"].isoformat(),
-             "hours": round((r["seconds"] or 0) / 3600, 2),
+             "hours": round(float(r["seconds"] or 0) / 3600, 2),
              "platforms": [p for p in r["platforms"] if p]}
             for r in rows
         ],

@@ -19,6 +19,16 @@ def _ids():
     return [str(i) for i in ids]
 
 
+def _hours(seconds, ndigits: int = 2) -> float:
+    """Watch hours as a JSON ``float``.
+
+    Aggregate sums over ``bigint`` columns come back as Postgres ``numeric`` →
+    Python ``Decimal``, which Flask's JSON provider serialises as a *string*.
+    Casting to ``float`` keeps the wire value a number so the frontend can do
+    arithmetic/formatting on it without crashing."""
+    return round(float(seconds or 0) / 3600, ndigits)
+
+
 @bp.get("/summary")
 @require_perm("catalog.read")
 def summary():
@@ -62,15 +72,15 @@ def summary():
         "totals": {
             "events": totals["events"], "movies": totals["movies"],
             "episodes": totals["episodes"], "titles": totals["titles"],
-            "hours": round((totals["seconds"] or 0) / 3600, 1),
+            "hours": _hours(totals["seconds"], 1),
         },
         "this_month": {
             "events": month["events"],
-            "hours": round((month["seconds"] or 0) / 3600, 1),
+            "hours": _hours(month["seconds"], 1),
         },
         "providers": [
             {"key": p["key"], "name": p["name"], "color": p["color"],
-             "events": int(p["events"] or 0), "hours": round((p["seconds"] or 0) / 3600, 1)}
+             "events": int(p["events"] or 0), "hours": _hours(p["seconds"], 1)}
             for p in providers
         ],
         "recent": [{"date": r["date"].isoformat(), "count": int(r["count"])} for r in recent],
@@ -99,7 +109,7 @@ def heatmap():
     return jsonify([
         {"date": r["date"].isoformat(), "count": int(r["count"]),
          "movies": int(r["movies"]), "episodes": int(r["episodes"]),
-         "hours": round((r["seconds"] or 0) / 3600, 2)}
+         "hours": _hours(r["seconds"])}
         for r in rows
     ])
 
@@ -129,7 +139,7 @@ def trend():
     return jsonify([
         {"period": r["period"].isoformat(), "events": int(r["events"]),
          "movies": int(r["movies"]), "episodes": int(r["episodes"]),
-         "hours": round((r["seconds"] or 0) / 3600, 2)}
+         "hours": _hours(r["seconds"])}
         for r in rows
     ])
 
@@ -154,7 +164,7 @@ def by_platform():
     return jsonify([
         {"period": r["period"].isoformat(), "key": r["key"], "name": r["name"],
          "color": r["color"], "events": int(r["events"]), "movies": int(r["movies"]),
-         "episodes": int(r["episodes"]), "hours": round((r["seconds"] or 0) / 3600, 2)}
+         "episodes": int(r["episodes"]), "hours": _hours(r["seconds"])}
         for r in rows
     ])
 
@@ -183,7 +193,7 @@ def month_titles():
         {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
          "poster": poster_url(r["poster_path"]), "events": int(r["events"]),
          "episodes": int(r["episodes"]), "last_watched": r["last_watched"].isoformat(),
-         "hours": round((r["seconds"] or 0) / 3600, 2)}
+         "hours": _hours(r["seconds"])}
         for r in rows
     ])
 
@@ -211,7 +221,7 @@ def day_titles():
         {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
          "poster": poster_url(r["poster_path"]), "events": int(r["events"]),
          "episodes": int(r["episodes"]),
-         "hours": round((r["seconds"] or 0) / 3600, 2)}
+         "hours": _hours(r["seconds"])}
         for r in rows
     ])
 
@@ -232,7 +242,7 @@ def by_genre():
     )
     return jsonify([
         {"genre": r["name"], "events": int(r["events"]),
-         "hours": round((r["seconds"] or 0) / 3600, 2)}
+         "hours": _hours(r["seconds"])}
         for r in rows
     ])
 
@@ -256,6 +266,6 @@ def by_actor():
     return jsonify([
         {"id": str(r["id"]), "name": r["name"],
          "profile": poster_url(r["profile_path"], "w185"),
-         "events": int(r["events"]), "hours": round((r["seconds"] or 0) / 3600, 2)}
+         "events": int(r["events"]), "hours": _hours(r["seconds"])}
         for r in rows
     ])
