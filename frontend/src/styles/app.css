@@ -95,6 +95,8 @@ button:disabled { opacity: 0.5; cursor: default; }
   line-height: 1;
   border: 1px solid transparent;
   text-decoration: none;
+  font-family: inherit;
+  cursor: pointer;
   transition: background 0.15s ease, transform 0.05s ease;
 }
 .btn-back:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
