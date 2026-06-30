@@ -46,6 +46,7 @@ const en = {
   // ── Add cinema film ──────────────────────────────────────────────────────
   "cinema.add": "Add cinema film",
   "cinema.addHint": "Manually add a film you saw in the cinema",
+  "cinema.toggleHint": "Show the \u201cAdd cinema film\u201d button on the dashboard and search screens",
   "cinema.dialogTitle": "Add a cinema film",
   "cinema.searchPlaceholder": "Search for a film…",
   "cinema.searching": "Searching…",

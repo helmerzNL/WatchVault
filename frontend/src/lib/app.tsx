@@ -23,6 +23,7 @@ export interface Prefs {
   default_profile: string;
   language: string;
   expert?: boolean;
+  cinemaAdd?: boolean;
   [k: string]: any;
 }
 
@@ -54,7 +55,7 @@ interface AppCtx {
   can: (perm: string) => boolean;
 }
 
-const DEFAULT_PREFS: Prefs = { theme: "system", accent: "#0a84ff", default_profile: "all", language: "en", expert: false };
+const DEFAULT_PREFS: Prefs = { theme: "system", accent: "#0a84ff", default_profile: "all", language: "en", expert: false, cinemaAdd: true };
 
 const Ctx = createContext<AppCtx>(null as any);
 export const useApp = () => useContext(Ctx);

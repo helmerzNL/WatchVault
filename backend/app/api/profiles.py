@@ -17,6 +17,7 @@ DEFAULT_PREFS = {
     "accent": "#0a84ff",
     "default_profile": "all",
     "language": "en",
+    "cinemaAdd": True,
 }
 
 

@@ -6,7 +6,6 @@ import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { addPasskey } from "../lib/auth";
 import { Section } from "../components/ui";
-import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
 import { ACCENTS, fmtDate } from "../lib/format";
 
 function Appearance() {
@@ -352,13 +351,17 @@ function DangerZone() {
 
 function ExpertTools() {
   const { t } = useT();
-  const { prefs, can } = useApp();
+  const { prefs, can, savePrefs } = useApp();
   if (!can("ingest.write") || !prefs.expert) return null;
+  const on = prefs.cinemaAdd !== false;
   return (
     <Section title={t("cinema.add")}>
       <div className="row" style={{ gap: 12, alignItems: "center" }}>
-        <span className="caption" style={{ flex: 1 }}>{t("cinema.addHint")}</span>
-        <AddCinemaFilmButton variant="block" />
+        <div className="seg">
+          <button className={on ? "active" : ""} onClick={() => savePrefs({ cinemaAdd: true })}>{t("common.on")}</button>
+          <button className={!on ? "active" : ""} onClick={() => savePrefs({ cinemaAdd: false })}>{t("common.off")}</button>
+        </div>
+        <span className="caption" style={{ flex: 1 }}>{t("cinema.toggleHint")}</span>
       </div>
     </Section>
   );

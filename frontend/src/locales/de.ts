@@ -46,6 +46,7 @@ const de = {
   // ── Kinofilm hinzufügen ──────────────────────────────────────────────────
   "cinema.add": "Kinofilm hinzufügen",
   "cinema.addHint": "Einen im Kino gesehenen Film manuell hinzufügen",
+  "cinema.toggleHint": "Die Schaltfläche \u201eKinofilm hinzufügen\u201c im Dashboard und in der Suche anzeigen",
   "cinema.dialogTitle": "Kinofilm hinzufügen",
   "cinema.searchPlaceholder": "Nach einem Film suchen…",
   "cinema.searching": "Suche…",

@@ -46,6 +46,7 @@ const fr = {
   // ── Ajouter un film au cinéma ────────────────────────────────────────────
   "cinema.add": "Ajouter un film au cinéma",
   "cinema.addHint": "Ajouter manuellement un film vu au cinéma",
+  "cinema.toggleHint": "Afficher le bouton \u201cAjouter un film au cinéma\u201d sur le tableau de bord et la recherche",
   "cinema.dialogTitle": "Ajouter un film au cinéma",
   "cinema.searchPlaceholder": "Rechercher un film…",
   "cinema.searching": "Recherche…",

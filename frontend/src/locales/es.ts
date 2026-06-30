@@ -46,6 +46,7 @@ const es = {
   // ── Añadir película de cine ──────────────────────────────────────────────
   "cinema.add": "Añadir película de cine",
   "cinema.addHint": "Añade manualmente una película que viste en el cine",
+  "cinema.toggleHint": "Mostrar el botón \u201cAñadir película de cine\u201d en el panel y en la búsqueda",
   "cinema.dialogTitle": "Añadir película de cine",
   "cinema.searchPlaceholder": "Buscar una película…",
   "cinema.searching": "Buscando…",

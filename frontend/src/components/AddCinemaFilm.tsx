@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
-import { todayLocalKey, localDateKey } from "../lib/format";
+import { todayLocalKey, localDateKey, fmtDate } from "../lib/format";
 import { IconPlus, IconClose, IconSearch, IconFilm } from "./icons";
 
 interface Hit {
@@ -25,7 +25,9 @@ const yesterdayKey = () => {
 // `variant` only tweaks styling so it fits each surface; the modal is shared.
 export function AddCinemaFilmButton({ variant = "primary" }: { variant?: "primary" | "ghost" | "block" }) {
   const { t } = useT();
+  const { prefs } = useApp();
   const [open, setOpen] = useState(false);
+  if (prefs.cinemaAdd === false) return null;
   const cls = variant === "primary" ? "btn-primary" : variant === "block" ? "btn" : "btn-ghost";
   return (
     <>
@@ -134,6 +136,7 @@ function AddCinemaFilmModal({ onClose }: { onClose: () => void }) {
                     <div className="cinema-hit-meta">
                       <div className="t">{r.title}</div>
                       {r.year && <div className="s muted">{r.year}</div>}
+                      {r.release_date && <div className="d tertiary">{fmtDate(r.release_date)}</div>}
                     </div>
                   </button>
                 ))
@@ -150,6 +153,7 @@ function AddCinemaFilmModal({ onClose }: { onClose: () => void }) {
               <div className="cinema-hit-meta">
                 <div className="t">{picked.title}</div>
                 {picked.year && <div className="s muted">{picked.year}</div>}
+                {picked.release_date && <div className="d tertiary">{fmtDate(picked.release_date)}</div>}
               </div>
             </button>
 

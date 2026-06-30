@@ -46,6 +46,7 @@ const nl = {
   // ── Bioscoopfilm toevoegen ───────────────────────────────────────────────
   "cinema.add": "Bioscoopfilm toevoegen",
   "cinema.addHint": "Voeg handmatig een film toe die je in de bioscoop zag",
+  "cinema.toggleHint": "Toon de knop \u201cBioscoopfilm toevoegen\u201d op het dashboard en in het zoekscherm",
   "cinema.dialogTitle": "Bioscoopfilm toevoegen",
   "cinema.searchPlaceholder": "Zoek een film…",
   "cinema.searching": "Zoeken…",
