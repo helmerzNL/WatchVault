@@ -14,7 +14,7 @@ type Gran = "day" | "week" | "month";
 function HoursTrend({ scope }: { scope: string }) {
   const { t } = useT();
   const [gran, setGran] = useState<Gran>("month");
-  const { data, loading, error, reload } = useFetch<any[]>(
+  const { data, error, reload } = useFetch<any[]>(
     () => api.get("/stats/trend", { profile: scope, granularity: gran }), [scope, gran]);
 
   const series = useMemo(() => (data || []).map((r) => ({
@@ -30,7 +30,8 @@ function HoursTrend({ scope }: { scope: string }) {
           <Seg value={gran} onChange={setGran} options={[
             { value: "day", label: t("overviews.day") }, { value: "week", label: t("overviews.week") }, { value: "month", label: t("overviews.month") }]} />
         </div>
-        {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
+        {error ? <ErrorState error={error} retry={reload} /> :
+          data == null ? <Loading /> :
           series.length ? <TrendArea data={series} /> : <p className="muted">{t("overviews.noDataRange")}</p>}
       </div>
     </Section>
@@ -40,7 +41,7 @@ function HoursTrend({ scope }: { scope: string }) {
 function PlatformBreakdown({ scope }: { scope: string }) {
   const { t } = useT();
   const [period, setPeriod] = useState<"month" | "year">("month");
-  const { data, loading, error, reload } = useFetch<any[]>(
+  const { data, error, reload } = useFetch<any[]>(
     () => api.get("/stats/by-platform", { profile: scope, period }), [scope, period]);
 
   const { rows, series } = useMemo(() => {
@@ -66,7 +67,8 @@ function PlatformBreakdown({ scope }: { scope: string }) {
           <Seg value={period} onChange={setPeriod} options={[
             { value: "month", label: t("overviews.monthly") }, { value: "year", label: t("overviews.yearly") }]} />
         </div>
-        {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
+        {error ? <ErrorState error={error} retry={reload} /> :
+          data == null ? <Loading /> :
           rows.length ? (
             <>
               <StackedBars data={rows} series={series} />
