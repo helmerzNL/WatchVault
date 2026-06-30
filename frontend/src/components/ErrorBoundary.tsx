@@ -1,24 +1,31 @@
-import { Component, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface Props { children: ReactNode; }
-interface State { error: Error | null; }
+interface State { error: Error | null; info: ErrorInfo | null; }
 
 const RECOVERY_KEY = "wv-asset-recovery";
 
+function isChunkError(msg: string): boolean {
+  return /(dynamically imported module|importing a module script failed|ChunkLoadError|Loading chunk)/i.test(msg);
+}
+
 // Top-level safety net. A blank (black) page means an uncaught error crashed the
 // React root before anything rendered into #root. This boundary turns that into a
-// recoverable screen, and auto-recovers once from stale-asset errors that follow
-// a PWA update (a cached index.html referencing a purged hashed chunk).
+// recoverable screen, surfaces the actual error so it can be diagnosed, and
+// auto-recovers once from stale-asset errors that follow a PWA update (a cached
+// index.html referencing a purged hashed chunk).
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  state: State = { error: null, info: null };
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { error };
   }
 
-  componentDidCatch(error: Error) {
-    const msg = error?.message || "";
-    if (/(dynamically imported module|importing a module script failed|ChunkLoadError|Loading chunk)/i.test(msg)) {
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    this.setState({ info });
+    // Surface the real error for diagnosis (self-hosted, no remote logging).
+    console.error("[WatchVault] render error:", error, info?.componentStack);
+    if (isChunkError(error?.message || "")) {
       try {
         if (!sessionStorage.getItem(RECOVERY_KEY)) {
           sessionStorage.setItem(RECOVERY_KEY, String(Date.now()));
@@ -47,13 +54,24 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   render() {
-    if (this.state.error) {
+    const { error, info } = this.state;
+    if (error) {
       return (
         <div className="center-screen">
-          <div className="card" style={{ maxWidth: 420, textAlign: "center", gap: 14 }}>
+          <div className="card" style={{ maxWidth: 560, textAlign: "center", gap: 14 }}>
             <h1 className="title">Something went wrong</h1>
             <p className="muted">The app hit an unexpected error. Reloading usually fixes it.</p>
             <button className="btn btn-primary" onClick={this.hardReload}>Reload</button>
+            <details style={{ textAlign: "left", marginTop: 8 }}>
+              <summary className="muted" style={{ cursor: "pointer" }}>Error details</summary>
+              <pre style={{
+                whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem",
+                marginTop: 8, maxHeight: 280, overflow: "auto", opacity: 0.85,
+              }}>
+                {String(error?.stack || error?.message || error)}
+                {info?.componentStack ? `\n\nComponent stack:${info.componentStack}` : ""}
+              </pre>
+            </details>
           </div>
         </div>
       );
