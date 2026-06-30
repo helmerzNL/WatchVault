@@ -379,3 +379,156 @@ def test_handle_scrobble_new_title_commits_in_one_transaction(monkeypatch):
     assert captured["cur"] is cur
     # lock_timeout hardening is set at the start of the transaction.
     assert any("lock_timeout" in s for s in cur.executed)
+
+
+# ── Keep now-playing visible after commit (this change) ─────────────────────
+#
+# A live scrobble that crosses the >=90% threshold commits to watch_events ONCE,
+# but the now-playing card must stay visible while playback continues — it only
+# disappears on a real `stop` event. These tests pin that contract DB-free.
+
+import contextlib  # noqa: E402
+
+
+def _fake_conn(cur):
+    """Wrap a fake cursor in a `connection()`-style context manager whose
+    conn.cursor() yields it (also usable as `with conn.cursor() as cur`)."""
+    class FakeConn:
+        def cursor(self):
+            return cur
+        def commit(self):
+            pass
+        def rollback(self):
+            pass
+
+    @contextlib.contextmanager
+    def fake_connection():
+        yield FakeConn()
+
+    return fake_connection
+
+
+def _norm(sql):
+    return " ".join(sql.split())
+
+
+def test_handle_scrobble_commit_keeps_playing_state(monkeypatch):
+    # (a) After a >=90% commit the session is NOT forced to state='stopped':
+    # state stays 'playing' and the commit happens exactly once.
+    cur = SmartCursor()
+    monkeypatch.setattr(_scrobble, "connection", _fake_conn(cur))
+    monkeypatch.setattr(
+        _scrobble, "ingest_events",
+        lambda *a, **k: {"inserted": 1, "duplicates": 0, "titles_created": 0,
+                         "titles_touched": 1, "series_title_ids": []})
+
+    evt = parse_generic_payload({"title": "Dune", "event": "update",
+                                 "position_seconds": 95, "duration_seconds": 100})
+    result = _scrobble.handle_scrobble("hh-1", evt, "token-user")
+
+    assert result["committed"] is True
+    assert result["state"] == "playing"      # update -> playing, kept at commit
+    # The commit UPDATE marks committed_at only; it must NOT force state='stopped'.
+    assert not any("state = 'stopped'" in _norm(s) for s in cur.executed)
+    # Exactly one commit-marking UPDATE ran.
+    assert sum("SET committed_at = now()" in _norm(s) for s in cur.executed) == 1
+
+
+class CommittedSessionCursor(SmartCursor):
+    """Like SmartCursor but the session UPSERT reports an already-committed row,
+    so handle_scrobble takes the already_committed (no re-ingest) path."""
+    def execute(self, sql, params=None):
+        super().execute(sql, params)
+        if "INSERT INTO scrobble_sessions" in _norm(sql):
+            self._last = {"id": "sess-1", "committed_at": "2024-01-01T00:00:00"}
+
+
+def test_handle_scrobble_committed_update_tick_does_not_reingest(monkeypatch):
+    # (b) A later identical `update` tick on an already-committed session does NOT
+    # re-ingest, and the session stays visible-eligible (state 'playing', not stopped).
+    cur = CommittedSessionCursor()
+    monkeypatch.setattr(_scrobble, "connection", _fake_conn(cur))
+
+    def _boom(*a, **k):
+        raise AssertionError("ingest_events ran for an already-committed session")
+    monkeypatch.setattr(_scrobble, "ingest_events", _boom)
+
+    evt = parse_generic_payload({"title": "Dune", "event": "update",
+                                 "position_seconds": 95, "duration_seconds": 100})
+    result = _scrobble.handle_scrobble("hh-1", evt, "token-user")
+
+    assert result["committed"] is False
+    assert result["state"] == "playing"      # still <> 'stopped' -> stays visible
+    # No second commit-marking UPDATE happened.
+    assert not any("SET committed_at = now()" in _norm(s) for s in cur.executed)
+
+
+def test_now_playing_query_drops_committed_at_filter(monkeypatch):
+    # (c) The now-playing query no longer filters on committed_at, so a
+    # committed-but-still-playing session is returned; only state='stopped' hides it.
+    from app import create_app
+    from app.auth import sessions as _sessions
+    from app.api import scrobble as _api
+
+    fake_user = {"id": "u-1", "household_id": "hh-1", "permissions": {"*"}}
+    monkeypatch.setattr(_sessions, "resolve_current_user", lambda: fake_user)
+
+    captured = {}
+
+    def fake_query_all(sql, params=None):
+        captured["sql"] = _norm(sql)
+        captured["params"] = params
+        return []
+    monkeypatch.setattr(_api, "query_all", fake_query_all)
+
+    client = create_app().test_client()
+    resp = client.get("/api/scrobble/now-playing")
+
+    assert resp.status_code == 200
+    assert "s.state <> 'stopped'" in captured["sql"]
+    assert "committed_at IS NULL" not in captured["sql"]
+    assert "ORDER BY s.updated_at DESC" in captured["sql"]
+    # A session paused for >10 minutes is hidden from the dashboard.
+    assert "s.state = 'paused'" in captured["sql"]
+    assert "interval '10 minutes'" in captured["sql"]
+
+
+def test_expire_stale_already_committed_marks_stopped_without_reingest(monkeypatch):
+    # (d) A stale session that is ALREADY committed (its ticks silently stopped, no
+    # `stop` event) is just marked stopped — no second ingest_events / watch_event.
+    stale_row = {
+        "id": "sess-9", "committed_at": "2024-01-01T00:00:00",
+        "progress_percent": 95, "user_id": "u-1", "provider_id": "p-1",
+        "episode_name": None, "raw_title": "Dune", "kind": "movie",
+        "year": 2024, "season": None, "episode": None,
+        "duration_seconds": 100, "tmdb_id": None, "source": "homeassistant",
+    }
+
+    class ExpireCursor:
+        def __init__(self):
+            self.executed = []
+        def execute(self, sql, params=None):
+            self.executed.append((_norm(sql), params))
+        def fetchall(self):
+            return [stale_row]
+        def __enter__(self):
+            return self
+        def __exit__(self, *exc):
+            return False
+
+    cur = ExpireCursor()
+    monkeypatch.setattr(_scrobble, "connection", _fake_conn(cur))
+
+    def _boom(*a, **k):
+        raise AssertionError("ingest_events ran for an already-committed stale session")
+    monkeypatch.setattr(_scrobble, "ingest_events", _boom)
+
+    result = _scrobble.expire_stale_sessions()
+
+    assert result["expired"] == 1
+    assert result["committed"] == 0
+    # The stale SELECT no longer filters on committed_at (it includes committed rows).
+    assert any("FROM scrobble_sessions" in sql and "committed_at IS NULL" not in sql
+               for sql, _ in cur.executed if "SELECT" in sql)
+    # The session was retired via state='stopped', not re-committed.
+    assert any("SET state = 'stopped'" in sql for sql, _ in cur.executed)

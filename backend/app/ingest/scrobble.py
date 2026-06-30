@@ -320,9 +320,14 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
             # lock while this one waits in Python for it to return — a self-deadlock
             # invisible to Postgres's detector.
             ingest_events(str(user_id), str(provider_id), None, [ne], cur=cur)
+            # Mark committed but keep the live state: an `update`/`play`/`scrobble`
+            # tick maps to 'playing', so the now-playing card stays visible while
+            # playback continues past the threshold. The card only disappears when a
+            # real `stop` event flips state to 'stopped'. The already_committed guard
+            # ensures later ticks see committed_at and do NOT re-ingest.
             cur.execute(
-                "UPDATE scrobble_sessions SET committed_at = now(), state = 'stopped' "
-                "WHERE id = %s", (session_id,))
+                "UPDATE scrobble_sessions SET committed_at = now() WHERE id = %s",
+                (session_id,))
             committed = True
 
     return {
@@ -342,9 +347,14 @@ def expire_stale_sessions(idle_minutes: int = 30,
     committed = 0
     expired = 0
     with connection() as conn, conn.cursor() as cur:
+        # Committed-but-still-playing sessions now keep state='playing' (so the card
+        # stays visible). Include them here: if their ticks silently stop (no stop
+        # event ever arrives, e.g. TV unplugged) they must still be retired from
+        # now-playing. The commit branch is guarded on committed_at IS NULL so an
+        # already-committed stale session is only marked stopped (no second ingest).
         cur.execute(
             "SELECT * FROM scrobble_sessions "
-            "WHERE committed_at IS NULL AND state <> 'stopped' "
+            "WHERE state <> 'stopped' "
             "AND updated_at < now() - (%s || ' minutes')::interval",
             (str(idle_minutes),),
         )
@@ -352,7 +362,8 @@ def expire_stale_sessions(idle_minutes: int = 30,
         for s in stale:
             expired += 1
             progress = float(s["progress_percent"] or 0)
-            if progress >= threshold and s["user_id"] and s["provider_id"]:
+            if (s["committed_at"] is None and progress >= threshold
+                    and s["user_id"] and s["provider_id"]):
                 ne = NormalizedEvent(
                     raw_title=s["episode_name"] or s["raw_title"],
                     clean_title=s["raw_title"],

@@ -100,7 +100,12 @@ def now_playing():
         "LEFT JOIN users u ON u.id = s.user_id "
         "LEFT JOIN providers p ON p.id = s.provider_id "
         "LEFT JOIN titles t ON t.id = s.title_id "
-        "WHERE s.household_id = %s AND s.committed_at IS NULL AND s.state <> 'stopped' "
+        "WHERE s.household_id = %s AND s.state <> 'stopped' "
+        # Hide a session that has been paused for more than 10 minutes: a `pause`
+        # event refreshes updated_at, so an old updated_at while state='paused'
+        # means it's been idle-on-pause too long. A later `resume` brings it back.
+        "AND NOT (s.state = 'paused' "
+        "         AND s.updated_at < now() - interval '10 minutes') "
         "ORDER BY s.updated_at DESC",
         (user["household_id"],),
     )
