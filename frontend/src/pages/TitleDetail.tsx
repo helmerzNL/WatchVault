@@ -10,8 +10,6 @@ import { useState } from "react";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-type ManualWatch = { id: string; date: string };
-
 function PersonCard({ c }: { c: any }) {
   const inner = (
     <>
@@ -54,17 +52,18 @@ function AddWatch({ onAdd, label }: { onAdd: (date: string) => Promise<void>; la
   );
 }
 
-// Removable chips for hand-entered watch dates.
-function ManualDates({ items, onRemove }: { items: ManualWatch[]; onRemove: (id: string) => void }) {
+// Removable chips for watch dates (any source). Removing a synced date tombstones
+// it so a later sync won't bring it back; removing a manual date deletes it.
+function WatchDateChips({ dates, onRemove }: { dates: string[]; onRemove: (date: string) => void }) {
   const { t } = useT();
-  if (!items?.length) return null;
+  if (!dates?.length) return null;
   return (
     <div className="row wrap" style={{ gap: 6 }}>
-      {items.map((w) => (
-        <span key={w.id} className="chip" style={{ minHeight: 0, padding: "3px 6px 3px 10px", gap: 4 }}>
-          {fmtDate(w.date)}
+      {dates.map((d) => (
+        <span key={d} className="chip" style={{ minHeight: 0, padding: "3px 6px 3px 10px", gap: 4 }}>
+          {fmtDate(d)}
           <button className="manual-x" title={t("common.remove")} aria-label={t("common.remove")}
-            onClick={() => onRemove(w.id)}>
+            onClick={() => onRemove(d)}>
             <IconClose width={12} height={12} />
           </button>
         </span>
@@ -77,7 +76,7 @@ type Ctl = {
   canEdit: boolean;
   addEpisode: (episodeId: string, date: string) => Promise<void>;
   addSeason: (season: number, date: string) => Promise<void>;
-  removeWatch: (eventId: string) => void;
+  removeEpisode: (episodeId: string, date: string) => void;
 };
 
 function EpisodeRow({ ep, ctl }: { ep: any; ctl: Ctl }) {
@@ -99,16 +98,16 @@ function EpisodeRow({ ep, ctl }: { ep: any; ctl: Ctl }) {
         </div>
         {meta.length > 0 && <span className="caption">{meta.join(" · ")}</span>}
         {ep.overview && <p className="episode-overview">{ep.overview}</p>}
-        <span className={`episode-status ${ep.watched ? "on" : ""}`}>
-          {dates.length > 0
-            ? t("title.watchedOn", { date: dates.map((d) => fmtDate(d)).join(" · ") })
-            : t("title.notWatched")}
-        </span>
+        {(!ctl.canEdit || dates.length === 0) && (
+          <span className={`episode-status ${ep.watched ? "on" : ""}`}>
+            {dates.length > 0
+              ? t("title.watchedOn", { date: dates.map((d) => fmtDate(d)).join(" · ") })
+              : t("title.notWatched")}
+          </span>
+        )}
         {ctl.canEdit && (
           <div className="manual-row">
-            {ep.manual_watches?.length > 0 && (
-              <ManualDates items={ep.manual_watches} onRemove={ctl.removeWatch} />
-            )}
+            <WatchDateChips dates={dates} onRemove={(d) => ctl.removeEpisode(ep.id, d)} />
             <AddWatch onAdd={(date) => ctl.addEpisode(ep.id, date)}
               label={ep.watched ? t("title.addWatch") : t("title.markWatched")} />
           </div>
@@ -178,6 +177,7 @@ export function TitleDetail() {
 
   const canEdit = can("ingest.write");
   const targetBody = () => (scope && scope !== "all" ? { user_id: scope } : {});
+  const scopeQ = () => (scope && scope !== "all" ? `&profile=${encodeURIComponent(scope)}` : "");
 
   if (loading) return <Loading />;
   if (error) return <ErrorState error={error} retry={reload} />;
@@ -213,6 +213,14 @@ export function TitleDetail() {
     } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
   }
 
+  async function removeTitleWatch(date: string) {
+    try {
+      await api.del(`/titles/${id}/watch?date=${encodeURIComponent(date)}${scopeQ()}`);
+      toast(t("title.watchRemoved"), "ok");
+      reload();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+  }
+
   const ctl: Ctl = {
     canEdit,
     addEpisode: async (episodeId, date) => {
@@ -229,9 +237,9 @@ export function TitleDetail() {
         reload();
       } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
     },
-    removeWatch: async (eventId) => {
+    removeEpisode: async (episodeId, date) => {
       try {
-        await api.del(`/watch-events/${eventId}`);
+        await api.del(`/episodes/${episodeId}/watch?date=${encodeURIComponent(date)}${scopeQ()}`);
         toast(t("title.watchRemoved"), "ok");
         reload();
       } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
@@ -277,15 +285,15 @@ export function TitleDetail() {
         </div>
       )}
 
-      {/* Manual watch dates for a movie (series mark watched per season/episode). */}
+      {/* Watch dates for a movie (series mark/remove per season/episode). */}
       {canEdit && ti.kind === "movie" && (
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="row wrap" style={{ gap: 12, alignItems: "center" }}>
             <strong>{t("title.watchDates")}</strong>
-            <ManualDates items={ti.manual_watches || []} onRemove={ctl.removeWatch} />
+            <WatchDateChips dates={ti.watch_dates || []} onRemove={removeTitleWatch} />
             <div className="spacer" style={{ flex: 1 }} />
             <AddWatch onAdd={addTitleWatch}
-              label={ti.manual_watches?.length ? t("title.addWatch") : t("title.markWatched")} />
+              label={ti.watch_dates?.length ? t("title.addWatch") : t("title.markWatched")} />
           </div>
         </div>
       )}

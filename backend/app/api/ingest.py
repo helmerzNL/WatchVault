@@ -11,10 +11,10 @@ from ..ingest import (ingest_events, prune_connection_libraries,
                       clear_connection_events, reset_all_data,
                       ingest_title_from_trakt, enqueue_trakt_title_syncs,
                       add_manual_movie, add_manual_episode, add_manual_season,
-                      remove_manual_watch)
+                      delete_episode_watch, delete_movie_watch)
 from ..ingest.adapters import get_adapter
 from ..auth.sessions import current_user, require_perm
-from ._common import household_user_ids
+from ._common import household_user_ids, scope_user_ids
 
 bp = Blueprint("ingest", __name__, url_prefix="/api")
 
@@ -484,14 +484,34 @@ def mark_season_watched(title_id: str, season: int):
     return jsonify({"ok": True, **result})
 
 
-@bp.delete("/watch-events/<event_id>")
+@bp.delete("/episodes/<episode_id>/watch")
 @require_perm("ingest.write")
-def delete_watch_event(event_id: str):
-    """Remove a single hand-entered watch date. Only ``manual`` events belonging
-    to the current household can be deleted; imported/synced events are untouched."""
-    if remove_manual_watch(household_user_ids(), event_id):
-        return jsonify({"ok": True})
-    return jsonify({"error": "not found or not removable"}), 404
+def remove_episode_watch(episode_id: str):
+    """Remove an episode's watch on a given date (``?date=YYYY-MM-DD``), for the
+    scoped profile(s). Synced events are tombstoned so a later sync won't re-add
+    them; manual events are deleted outright."""
+    try:
+        date = dt.date.fromisoformat((request.args.get("date") or "").strip())
+    except ValueError:
+        return jsonify({"error": "valid date required"}), 400
+    result = delete_episode_watch(scope_user_ids(), episode_id, date)
+    if result.get("status") == "no_episode":
+        return jsonify({"error": "episode not found"}), 404
+    return jsonify({"ok": True, **result})
+
+
+@bp.delete("/titles/<title_id>/watch")
+@require_perm("ingest.write")
+def remove_title_watch(title_id: str):
+    """Remove a movie's watch on a given date (``?date=YYYY-MM-DD``), for the
+    scoped profile(s). Synced events are tombstoned against re-sync; manual ones
+    are deleted."""
+    try:
+        date = dt.date.fromisoformat((request.args.get("date") or "").strip())
+    except ValueError:
+        return jsonify({"error": "valid date required"}), 400
+    result = delete_movie_watch(scope_user_ids(), title_id, date)
+    return jsonify({"ok": True, **result})
 
 
 @bp.post("/ingest/rebuild-agg")

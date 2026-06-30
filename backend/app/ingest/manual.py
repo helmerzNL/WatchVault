@@ -130,27 +130,78 @@ def add_manual_season(user_id: str, title_id: str, season: int,
         return {"status": "ok", "inserted": added, "total": len(eps)}
 
 
-def remove_manual_watch(user_ids: list[str], event_id: str) -> bool:
-    """Delete one hand-entered watch event (only ``manual`` events owned by the
-    given household members can be removed). Rebuilds the affected aggregate day.
-    Returns True when a row was removed."""
+def remove_watch_date(user_ids: list[str], *, watched_date: dt.date,
+                      match_sql: str, match_params: list) -> dict:
+    """Delete every watch event for the matched item on ``watched_date`` for the
+    given household members, regardless of source.
+
+    Synced/imported events (Plex, Trakt, Netflix, …) are *tombstoned*: the row is
+    kept with ``deleted_at`` set so it vanishes from every view and aggregate, but
+    its unique ``dedup_hash`` stays in place — so the next sync hits
+    ``ON CONFLICT (dedup_hash) DO NOTHING`` and never re-adds it. Hand-entered
+    ``manual`` events are hard-deleted so the same date can be added again later.
+
+    Returns ``{"removed": n}``."""
     ids = [str(u) for u in (user_ids or [])]
     if not ids:
-        return False
+        return {"removed": 0}
     with connection() as conn, conn.cursor() as cur:
+        pairs: set = set()
+        removed = 0
+        # Tombstone synced events (keep the row + dedup_hash so resync skips it).
+        cur.execute(
+            "UPDATE watch_events we SET deleted_at = now() FROM providers p "
+            "WHERE we.provider_id = p.id AND p.key <> 'manual' "
+            "AND we.deleted_at IS NULL AND we.user_id = ANY(%s::uuid[]) "
+            "AND we.watched_date = %s AND " + match_sql +
+            " RETURNING we.user_id, we.provider_id",
+            [ids, watched_date] + match_params,
+        )
+        for r in cur.fetchall():
+            pairs.add((str(r["user_id"]), str(r["provider_id"])))
+            removed += 1
+        # Hard-delete manual events so the same date can be re-entered.
         cur.execute(
             "DELETE FROM watch_events we USING providers p "
-            "WHERE we.id = %s AND we.provider_id = p.id AND p.key = 'manual' "
-            "AND we.user_id = ANY(%s::uuid[]) "
-            "RETURNING we.user_id, we.provider_id, we.watched_date",
-            (event_id, ids),
+            "WHERE we.provider_id = p.id AND p.key = 'manual' "
+            "AND we.user_id = ANY(%s::uuid[]) AND we.watched_date = %s AND " + match_sql +
+            " RETURNING we.user_id, we.provider_id",
+            [ids, watched_date] + match_params,
         )
-        row = cur.fetchone()
-        if not row:
-            return False
-        _recompute(cur, str(row["user_id"]), str(row["provider_id"]),
-                   [row["watched_date"]])
-        return True
+        for r in cur.fetchall():
+            pairs.add((str(r["user_id"]), str(r["provider_id"])))
+            removed += 1
+        for uid, pid in pairs:
+            _recompute(cur, uid, pid, [watched_date])
+        return {"removed": removed}
+
+
+def delete_episode_watch(user_ids: list[str], episode_id: str,
+                         watched_date: dt.date) -> dict:
+    """Remove one episode's watch on ``watched_date`` (all sources, all matched
+    household members). Matches events linked by episode id or by season/episode
+    number so provider rows that never resolved an episode id are caught too."""
+    with connection() as conn, conn.cursor() as cur:
+        ep = _one(cur, "SELECT title_id, season, episode FROM title_episodes "
+                       "WHERE id = %s", (episode_id,))
+    if not ep:
+        return {"status": "no_episode", "removed": 0}
+    match = ("(we.episode_id = %s OR (we.title_id = %s "
+             "AND COALESCE(we.season, 0) = %s AND we.episode = %s))")
+    params = [str(episode_id), str(ep["title_id"]), ep["season"] or 0, ep["episode"]]
+    res = remove_watch_date(user_ids, watched_date=watched_date,
+                            match_sql=match, match_params=params)
+    return {"status": "ok", **res}
+
+
+def delete_movie_watch(user_ids: list[str], title_id: str,
+                       watched_date: dt.date) -> dict:
+    """Remove a movie's watch on ``watched_date`` (all sources, all matched
+    household members)."""
+    match = "(we.title_id = %s AND we.episode_id IS NULL)"
+    res = remove_watch_date(user_ids, watched_date=watched_date,
+                            match_sql=match, match_params=[str(title_id)])
+    return {"status": "ok", **res}
 
 
 def _one(cur, sql: str, params: tuple):

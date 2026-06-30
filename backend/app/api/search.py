@@ -138,19 +138,16 @@ def title_detail(title_id: str):
 
     seasons = _series_seasons(title_id, t, ids) if t["kind"] == "series" else []
 
-    # Hand-entered (manual) watch dates the user can remove. For a movie these are
-    # the title-level manual events; for a series they live per-episode (below).
-    manual_watches = []
+    # Distinct watch dates for a movie, so each can be shown and individually
+    # removed (series do this per episode in the season tree below).
+    watch_dates: list[str] = []
     if t["kind"] == "movie":
-        mrows = query_all(
-            "SELECT we.id, we.watched_date FROM watch_events we "
-            "JOIN providers p ON p.id = we.provider_id "
-            "WHERE we.title_id = %s AND we.user_id = ANY(%s::uuid[]) "
-            "AND we.deleted_at IS NULL AND p.key = 'manual' AND we.episode_id IS NULL "
-            "ORDER BY we.watched_date DESC",
-            (title_id, ids))
-        manual_watches = [{"id": str(r["id"]), "date": r["watched_date"].isoformat()}
-                          for r in mrows]
+        drows = query_all(
+            "SELECT DISTINCT watched_date FROM watch_events "
+            "WHERE title_id = %s AND user_id = ANY(%s::uuid[]) "
+            "AND deleted_at IS NULL AND episode_id IS NULL "
+            "ORDER BY watched_date DESC", (title_id, ids))
+        watch_dates = [r["watched_date"].isoformat() for r in drows]
 
     # For a series, the per-episode rows now carry their own watch dates, so the
     # standalone history list below would just duplicate them. Keep only events
@@ -178,7 +175,7 @@ def title_detail(title_id: str):
         "trakt_configured": trakt_ok,
         "genres": [g["name"] for g in genres],
         "seasons": seasons,
-        "manual_watches": manual_watches,
+        "watch_dates": watch_dates,
         "cast": [{"id": str(c["id"]), "name": c["name"], "character": c["character"],
                   "profile": poster_url(c["profile_path"], "w185")} for c in cast],
         "crew": [{"id": str(c["id"]), "name": c["name"], "job": c["job"],
@@ -219,27 +216,9 @@ def _series_seasons(title_id: str, t: dict, ids: list[str]) -> list[dict]:
         if w["episode"] is not None:
             watched_se[(w["season"] or 0, w["episode"])] = dates
 
-    # Hand-entered episode watches (removable). Keyed the same way as `watched`
-    # so each episode can list its manual dates with their event ids.
-    manual = query_all(
-        "SELECT we.id, we.episode_id, we.season, we.episode, we.watched_date "
-        "FROM watch_events we JOIN providers p ON p.id = we.provider_id "
-        "WHERE we.title_id = %s AND we.user_id = ANY(%s::uuid[]) "
-        "AND we.deleted_at IS NULL AND p.key = 'manual' AND we.item_kind = 'episode' "
-        "ORDER BY we.watched_date DESC", (title_id, ids))
-    manual_ids: dict[str, list] = {}
-    manual_se: dict[tuple, list] = {}
-    for m in manual:
-        entry = {"id": str(m["id"]), "date": m["watched_date"].isoformat()}
-        if m["episode_id"]:
-            manual_ids.setdefault(str(m["episode_id"]), []).append(entry)
-        if m["episode"] is not None:
-            manual_se.setdefault((m["season"] or 0, m["episode"]), []).append(entry)
-
     by_season: dict[int, list] = {}
     for e in eps:
         dates = watched_ids.get(str(e["id"])) or watched_se.get((e["season"] or 0, e["episode"])) or []
-        mw = manual_ids.get(str(e["id"])) or manual_se.get((e["season"] or 0, e["episode"])) or []
         by_season.setdefault(e["season"] or 0, []).append({
             "id": str(e["id"]), "episode": e["episode"], "name": e["name"],
             "overview": e["overview"],
@@ -248,7 +227,6 @@ def _series_seasons(title_id: str, t: dict, ids: list[str]) -> list[dict]:
             "still": poster_url(e["still_path"], "w300"),
             "watched": len(dates) > 0, "last_watched": dates[0] if dates else None,
             "watch_dates": dates,
-            "manual_watches": mw,
         })
 
     seasons = []
