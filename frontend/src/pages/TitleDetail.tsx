@@ -15,6 +15,46 @@ const yesterday = () => {
   return d.toISOString().slice(0, 10);
 };
 
+// A network/broadcaster logo (from TMDB) shown on its own — no name beside it.
+// TMDB only ships one logo per network, so to keep every logo legible in both
+// the light and dark themes we sample the logo's average brightness (its pixels
+// are served with CORS) and give it a CONTRASTING backing plate: a light plate
+// behind dark logos, a dark plate behind light ones. If sampling is blocked we
+// keep the default light plate, which suits the typically-dark TMDB logos.
+// Falls back to a name chip when a network has no logo.
+function NetworkLogo({ logo, name }: { logo?: string; name: string }) {
+  const [tone, setTone] = useState<"dark" | "light">("dark");
+  function detect(e: any) {
+    const img = e.currentTarget as HTMLImageElement;
+    try {
+      const c = document.createElement("canvas");
+      const w = (c.width = 28), h = (c.height = 28);
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, w, h);
+      const { data } = ctx.getImageData(0, 0, w, h);
+      let lum = 0, weight = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const a = data[i + 3] / 255;
+        if (a < 0.12) continue; // ignore (near-)transparent pixels
+        lum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) * a;
+        weight += a;
+      }
+      if (weight > 0) setTone(lum / weight < 130 ? "dark" : "light");
+    } catch {
+      /* tainted/unsupported canvas — keep the default light plate */
+    }
+  }
+  if (!logo) {
+    return <span className="chip" style={{ minHeight: 0, padding: "2px 10px" }}>{name}</span>;
+  }
+  return (
+    <span className={`network-logo network-logo--${tone}`} title={name}>
+      <img src={logo} crossOrigin="anonymous" alt={name} onLoad={detect} />
+    </span>
+  );
+}
+
 function PersonCard({ c }: { c: any }) {
   const inner = (
     <>
@@ -353,10 +393,7 @@ export function TitleDetail() {
               <div className="chips" style={{ alignItems: "center" }}>
                 <span className="caption" style={{ marginRight: 2 }}>{t("title.network")}:</span>
                 {ti.networks.map((n: any, i: number) => (
-                  <span key={i} className="chip row" style={{ gap: 6, alignItems: "center" }}>
-                    {n.logo && <img src={n.logo} alt="" style={{ height: 16, width: "auto", borderRadius: 3 }} />}
-                    {n.name}
-                  </span>
+                  <NetworkLogo key={i} logo={n.logo} name={n.name} />
                 ))}
               </div>
             )}

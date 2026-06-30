@@ -281,6 +281,21 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 }
 .chip.active { background: var(--accent); color: var(--accent-text); border-color: transparent; }
 
+/* Network/broadcaster logo plate (title page). The plate colour is chosen from
+   the logo's own brightness (see NetworkLogo) so dark logos sit on a light plate
+   and light logos on a dark plate — legible in both the light and dark themes. */
+.network-logo {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+.network-logo img { height: 22px; width: auto; display: block; }
+.network-logo--dark { background: #ffffff; border-color: rgba(0, 0, 0, 0.10); }
+.network-logo--light { background: #161618; border-color: rgba(255, 255, 255, 0.14); }
+
 .seg {
   display: inline-flex;
   background: var(--accent-subtle);
