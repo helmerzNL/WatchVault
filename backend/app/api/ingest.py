@@ -92,19 +92,27 @@ def import_file():
 def list_connections():
     user = current_user()
     rows = query_all(
-        "SELECT sc.id, sc.name, sc.enabled, sc.last_sync_at, sc.last_status, "
+        "SELECT sc.id, sc.name, sc.enabled, sc.last_sync_at, sc.last_status, sc.config, "
         "  p.key AS provider_key, p.name AS provider_name "
         "FROM source_connections sc JOIN providers p ON p.id = sc.provider_id "
         "WHERE sc.household_id = %s ORDER BY sc.created_at",
         (user["household_id"],),
     )
-    return jsonify([
-        {"id": str(r["id"]), "name": r["name"], "enabled": r["enabled"],
-         "provider_key": r["provider_key"], "provider_name": r["provider_name"],
-         "last_sync_at": r["last_sync_at"].isoformat() if r["last_sync_at"] else None,
-         "last_status": r["last_status"]}
-        for r in rows
-    ])
+    out = []
+    for r in rows:
+        cfg = r["config"] or {}
+        out.append({
+            "id": str(r["id"]), "name": r["name"], "enabled": r["enabled"],
+            "provider_key": r["provider_key"], "provider_name": r["provider_name"],
+            "last_sync_at": r["last_sync_at"].isoformat() if r["last_sync_at"] else None,
+            "last_status": r["last_status"],
+            # Non-secret hints so the UI can drive the Trakt re-authorize flow.
+            # The client_id is not sensitive; the secret/token are never exposed.
+            "client_id": cfg.get("client_id"),
+            "has_secret": bool(cfg.get("client_secret")),
+            "has_token": bool(cfg.get("access_token")),
+        })
+    return jsonify(out)
 
 
 @bp.get("/connections/<conn_id>/libraries")
@@ -252,6 +260,41 @@ def trakt_authorize():
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": str(exc)}), 400
     return jsonify({"ok": True, **tokens})
+
+
+@bp.post("/connections/<conn_id>/trakt-authorize")
+@require_perm("ingest.write")
+def trakt_authorize_existing(conn_id: str):
+    """(Re)authorize an existing Trakt connection: exchange a fresh PIN and store
+    the new access/refresh tokens on the connection. The stored client_id/secret
+    are reused when present (so the user only pastes a new PIN); either may be
+    supplied in the body to fill one that was never saved. This is what fixes a
+    connection stuck on 401/403 because it has no (or an expired) OAuth token."""
+    from ..ingest.adapters.trakt import exchange_pin
+    user = current_user()
+    conn = query_one(
+        "SELECT sc.config FROM source_connections sc "
+        "WHERE sc.id = %s AND sc.household_id = %s",
+        (conn_id, user["household_id"]),
+    )
+    if not conn:
+        return jsonify({"error": "not found"}), 404
+    cfg = conn["config"] or {}
+    body = request.get_json(force=True, silent=True) or {}
+    client_id = (body.get("client_id") or cfg.get("client_id") or "").strip()
+    client_secret = (body.get("client_secret") or cfg.get("client_secret") or "").strip()
+    pin = (body.get("pin") or "").strip()
+    if not (client_id and client_secret and pin):
+        return jsonify({"error": "client_id, client_secret and pin are required"}), 400
+    try:
+        tokens = exchange_pin(client_id, client_secret, pin)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": str(exc)}), 400
+    new_cfg = {**cfg, "client_id": client_id, "client_secret": client_secret,
+               **tokens, "username": cfg.get("username") or "me"}
+    execute("UPDATE source_connections SET config = %s WHERE id = %s",
+            (json.dumps(new_cfg), conn_id))
+    return jsonify({"ok": True})
 
 
 @bp.post("/connections/<conn_id>/sync")

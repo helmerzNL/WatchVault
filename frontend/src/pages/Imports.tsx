@@ -94,10 +94,17 @@ function Connections({ providers, connections, reload }: {
   const [editSel, setEditSel] = useState<string[]>([]);
   const [editBusy, setEditBusy] = useState(false);
   const [traktPin, setTraktPin] = useState("");
+  const [reauthId, setReauthId] = useState<string | null>(null);
+  const [reauthSecret, setReauthSecret] = useState("");
 
   function providerSupportsLibraries(key: string) {
     return (apiProviders.find((p) => p.key === key)?.config_fields || [])
       .some((f) => f.type === "library_select");
+  }
+
+  function providerSupportsTrakt(key: string) {
+    return (apiProviders.find((p) => p.key === key)?.config_fields || [])
+      .some((f) => f.type === "trakt_oauth");
   }
 
   async function openEdit(c: any) {
@@ -217,6 +224,24 @@ function Connections({ providers, connections, reload }: {
     try {
       const res = await api.post(`/connections/${id}/clear`);
       toast(t("imports.itemsCleared", { removed: res.removed }));
+      reload();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
+    } finally { setBusy(null); }
+  }
+
+  async function reauthorizeTrakt(c: any) {
+    if (!c.client_id) { toast(t("imports.traktNeedKeys"), "err"); return; }
+    if (!c.has_secret && !reauthSecret.trim()) { toast(t("imports.traktNeedKeys"), "err"); return; }
+    if (!traktPin.trim()) { toast(t("imports.traktNeedPin"), "err"); return; }
+    setBusy("reauth");
+    try {
+      await api.post(`/connections/${c.id}/trakt-authorize`, {
+        pin: traktPin.trim(),
+        ...(reauthSecret.trim() ? { client_secret: reauthSecret.trim() } : {}),
+      });
+      setTraktPin(""); setReauthSecret(""); setReauthId(null);
+      toast(t("imports.traktAuthorized"));
       reload();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
@@ -349,6 +374,12 @@ function Connections({ providers, connections, reload }: {
                         {t("imports.editLibraries")}
                       </button>
                     )}
+                    {providerSupportsTrakt(c.provider_key) && (
+                      <button className="btn-ghost btn-sm"
+                        onClick={() => { setReauthId(reauthId === c.id ? null : c.id); setTraktPin(""); setReauthSecret(""); }}>
+                        {t("imports.traktReauthorize")}
+                      </button>
+                    )}
                     <button className="btn-ghost btn-sm" disabled={busy === c.id} onClick={() => sync(c.id)}>
                       {busy === c.id ? "…" : <><IconRefresh width={15} height={15} /> {t("imports.sync")}</>}
                     </button>
@@ -384,6 +415,34 @@ function Connections({ providers, connections, reload }: {
                     </button>
                     <button className="btn-ghost btn-sm" onClick={() => setEditing(null)}>{t("common.cancel")}</button>
                     <span className="caption">{t("imports.librariesSelected", { selected: editSel.length, total: editLibs?.length || 0 })}</span>
+                  </div>
+                </div>
+              )}
+              {reauthId === c.id && (
+                <div className="card" style={{ margin: "0 0 12px", background: "var(--bg)" }}>
+                  <label>{t("imports.traktReauthTitle")}</label>
+                  <p className="caption" style={{ marginBottom: 10 }}>{t("imports.traktReauthHelp")}</p>
+                  <div className="col" style={{ gap: 8 }}>
+                    {!c.has_secret && (
+                      <input value={reauthSecret} onChange={(e) => setReauthSecret(e.target.value)}
+                        type="password" placeholder={t("imports.traktSecretPlaceholder")} />
+                    )}
+                    <div className="caption">{t("imports.traktStep1")}{" "}
+                      <a href={c.client_id
+                        ? `https://trakt.tv/oauth/authorize?response_type=code&client_id=${encodeURIComponent(c.client_id)}&redirect_uri=urn:ietf:wg:oauth:2.0:oob`
+                        : undefined}
+                        target="_blank" rel="noreferrer">
+                        {t("imports.traktOpenAuth")}
+                      </a>
+                    </div>
+                    <div className="row" style={{ gap: 8 }}>
+                      <input value={traktPin} onChange={(e) => setTraktPin(e.target.value)}
+                        placeholder={t("imports.traktPinPlaceholder")} style={{ flex: 1 }} />
+                      <button className="btn-primary btn-sm" disabled={busy === "reauth"} onClick={() => reauthorizeTrakt(c)}>
+                        {busy === "reauth" ? t("imports.loadingShort") : t("imports.traktAuthorize")}
+                      </button>
+                      <button className="btn-ghost btn-sm" onClick={() => setReauthId(null)}>{t("common.cancel")}</button>
+                    </div>
                   </div>
                 </div>
               )}
