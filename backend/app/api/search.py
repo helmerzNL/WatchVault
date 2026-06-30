@@ -69,7 +69,7 @@ def search():
         f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, t.overview, t.overviews, "
         f"  count(*) AS events, max(we.watched_date) AS last_watched, "
         f"  COALESCE(sum({EFF_SECONDS}),0) AS seconds, "
-        f"  array_agg(DISTINCT p.name) AS platforms "
+        f"  array_agg(DISTINCT jsonb_build_object('key', p.key, 'name', p.name)) AS platforms "
         f"FROM watch_events we JOIN titles t ON t.id = we.title_id "
         f"JOIN providers p ON p.id = we.provider_id "
         f"WHERE {clause} "
@@ -92,7 +92,7 @@ def search():
              "overview": (r["overviews"] or {}).get(lang) or r["overview"],
              "events": int(r["events"]), "last_watched": r["last_watched"].isoformat(),
              "hours": round(float(r["seconds"] or 0) / 3600, 2),
-             "platforms": [p for p in r["platforms"] if p]}
+             "platforms": [p for p in (r["platforms"] or []) if p and p.get("name")]}
             for r in rows
         ],
     })

@@ -183,12 +183,16 @@ export function Search() {
           <>
             <p className="muted" style={{ marginBottom: 14 }}>{total !== 1 ? t("search.titles", { count: total }) : t("search.titleOne", { count: total })}</p>
             <div className="poster-grid">
-              {results.map((rt) => (
-                <Poster key={rt.id} to={`/title/${rt.id}`} poster={rt.poster} title={rt.title} kind={rt.kind}
-                  enrichId={rt.id}
-                  badge={rt.kind === "movie" ? t("common.film") : t("common.series")}
-                  subtitle={`${rt.platforms?.[0] || ""}${rt.last_watched ? " · " + fmtDate(rt.last_watched) : ""}`} />
-              ))}
+              {results.map((rt) => {
+                const p0 = rt.platforms?.[0];
+                const plat = p0 ? providerLabel(t, p0.key, p0.name) : "";
+                return (
+                  <Poster key={rt.id} to={`/title/${rt.id}`} poster={rt.poster} title={rt.title} kind={rt.kind}
+                    enrichId={rt.id}
+                    badge={rt.kind === "movie" ? t("common.film") : t("common.series")}
+                    subtitle={`${plat}${rt.last_watched ? " · " + fmtDate(rt.last_watched) : ""}`} />
+                );
+              })}
             </div>
             {hasMore && (
               <div ref={sentinel} className="row" style={{ justifyContent: "center", marginTop: 20 }}>
