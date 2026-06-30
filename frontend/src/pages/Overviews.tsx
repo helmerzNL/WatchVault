@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT, useGenre } from "../lib/i18n";
@@ -7,7 +7,7 @@ import { useFetch } from "../lib/useFetch";
 import { TrendArea, StackedBars, HBars } from "../components/charts";
 import { Heatmap } from "../components/Heatmap";
 import { Loading, ErrorState, Poster, Section } from "../components/ui";
-import { fmtHours, fmtMonth, monthKey, monthLabel } from "../lib/format";
+import { fmtDate, fmtHours, fmtMonth, monthKey, monthLabel } from "../lib/format";
 
 type Gran = "day" | "week" | "month";
 
@@ -100,8 +100,16 @@ function DailyHeatmap({ scope }: { scope: string }) {
     return [y, y - 1, y - 2];
   }, []);
   const [year, setYear] = useState(years[0]);
+  const [selected, setSelected] = useState<string | null>(null);
   const { data, loading, error, reload } = useFetch<any[]>(
     () => api.get("/stats/heatmap", { profile: scope, year }), [scope, year]);
+
+  // Reset the open day when the profile or year changes.
+  useEffect(() => { setSelected(null); }, [scope, year]);
+
+  const dayMedia = useFetch<any[]>(
+    () => (selected ? api.get("/stats/day", { profile: scope, date: selected })
+                    : Promise.resolve([])), [scope, selected]);
 
   return (
     <Section title={t("overviews.dailyActivity")}
@@ -109,8 +117,27 @@ function DailyHeatmap({ scope }: { scope: string }) {
         options={years.map((y) => ({ value: String(y), label: String(y) }))} />}>
       <div className="card" style={{ overflowX: "auto" }}>
         {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
-          <Heatmap days={data || []} year={year} />}
+          <Heatmap days={data || []} year={year} selected={selected} onSelect={setSelected} />}
       </div>
+      {selected && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="row" style={{ alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ margin: 0, flex: 1, fontSize: "1.02rem" }}>{fmtDate(selected)}</h3>
+            <button className="btn-ghost" onClick={() => setSelected(null)} aria-label={t("common.close")}>✕</button>
+          </div>
+          {dayMedia.loading ? <Loading /> :
+            dayMedia.data && dayMedia.data.length ? (
+              <div className="poster-grid">
+                {dayMedia.data.map((m) => (
+                  <Poster key={m.id} to={`/title/${m.id}`} poster={m.poster} title={m.title} kind={m.kind}
+                    enrichId={m.id}
+                    subtitle={m.kind === "movie" ? `${m.year || ""}` : `${m.episodes} ep · ${fmtHours(m.hours)}`}
+                    badge={m.kind === "movie" ? t("common.film") : t("common.series")} />
+                ))}
+              </div>
+            ) : <p className="muted">{t("overviews.nothingOnDay")}</p>}
+        </div>
+      )}
     </Section>
   );
 }

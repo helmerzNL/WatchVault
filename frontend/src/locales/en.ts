@@ -72,6 +72,8 @@ const en = {
   "overviews.dailyActivity": "Daily activity",
   "overviews.watchedPerMonth": "Watched per month",
   "overviews.nothingIn": "Nothing watched in {month}.",
+  "overviews.nothingOnDay": "Nothing watched on this day.",
+  "common.close": "Close",
   "overviews.timePerGenre": "Time per genre",
   "overviews.timePerActor": "Time per actor",
   "overviews.noGenreData": "No genre data yet — enrich titles with TMDB in Settings.",

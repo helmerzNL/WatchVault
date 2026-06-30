@@ -72,6 +72,8 @@ const nl = {
   "overviews.dailyActivity": "Dagelijkse activiteit",
   "overviews.watchedPerMonth": "Bekeken per maand",
   "overviews.nothingIn": "Niets bekeken in {month}.",
+  "overviews.nothingOnDay": "Niets bekeken op deze dag.",
+  "common.close": "Sluiten",
   "overviews.timePerGenre": "Tijd per genre",
   "overviews.timePerActor": "Tijd per acteur",
   "overviews.noGenreData": "Nog geen genregegevens — verrijk titels met TMDB in Instellingen.",

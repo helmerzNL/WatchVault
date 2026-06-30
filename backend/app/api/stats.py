@@ -188,6 +188,34 @@ def month_titles():
     ])
 
 
+@bp.get("/day")
+@require_perm("catalog.read")
+def day_titles():
+    """Titles watched on a given day (YYYY-MM-DD), grouped per title."""
+    ids = _ids()
+    date = request.args.get("date")  # 'YYYY-MM-DD'
+    if not date:
+        return jsonify({"error": "date=YYYY-MM-DD required"}), 400
+    rows = query_all(
+        f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, "
+        f"  count(*) AS events, "
+        f"  count(*) FILTER (WHERE we.item_kind='episode') AS episodes, "
+        f"  COALESCE(sum({EFF_SECONDS}),0) AS seconds "
+        f"FROM watch_events we JOIN titles t ON t.id = we.title_id "
+        f"WHERE we.user_id = ANY(%s::uuid[]) AND we.deleted_at IS NULL "
+        f"AND we.watched_date = %s "
+        f"GROUP BY t.id ORDER BY events DESC, t.title",
+        (ids, date),
+    )
+    return jsonify([
+        {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
+         "poster": poster_url(r["poster_path"]), "events": int(r["events"]),
+         "episodes": int(r["episodes"]),
+         "hours": round((r["seconds"] or 0) / 3600, 2)}
+        for r in rows
+    ])
+
+
 @bp.get("/by-genre")
 @require_perm("catalog.read")
 def by_genre():

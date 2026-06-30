@@ -338,6 +338,8 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 /* Heatmap */
 .heatmap { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; overflow-x: auto; padding-bottom: 8px; }
 .heatmap .cell { width: 13px; height: 13px; border-radius: 3px; background: var(--accent-subtle); }
+.heatmap .cell.clickable { cursor: pointer; }
+.heatmap .cell.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
 .heat-legend { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-secondary); }
 .heat-legend .cell { width: 13px; height: 13px; border-radius: 3px; }
 

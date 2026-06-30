@@ -3,7 +3,9 @@ import { useMemo } from "react";
 interface Day { date: string; count: number; hours: number; }
 
 // GitHub-style calendar heatmap. Columns = weeks, rows = weekdays.
-export function Heatmap({ days, year }: { days: Day[]; year: number }) {
+export function Heatmap({ days, year, selected, onSelect }: {
+  days: Day[]; year: number; selected?: string | null; onSelect?: (date: string) => void;
+}) {
   const { cells, max, months } = useMemo(() => {
     const byDate = new Map(days.map((d) => [d.date, d]));
     const start = new Date(Date.UTC(year, 0, 1));
@@ -54,20 +56,26 @@ export function Heatmap({ days, year }: { days: Day[]; year: number }) {
         {months.map((m, i) => <span key={i} style={{ minWidth: 26 }}>{m.label}</span>)}
       </div>
       <div className="heatmap">
-        {cells.map((c, i) => (
-          <div
-            key={i}
-            className="cell"
-            title={c.date ? `${c.date}: ${c.count} watched · ${c.hours}h` : ""}
-            style={{
-              background: c.date
-                ? c.count
-                  ? `color-mix(in srgb, var(--accent) ${level(c.count) * 100}%, transparent)`
-                  : "var(--accent-subtle)"
-                : "transparent",
-            }}
-          />
-        ))}
+        {cells.map((c, i) => {
+          const clickable = !!(c.date && c.count && onSelect);
+          const isSel = !!(c.date && selected && c.date === selected);
+          return (
+            <div
+              key={i}
+              className={"cell" + (clickable ? " clickable" : "") + (isSel ? " selected" : "")}
+              onClick={clickable ? () => onSelect!(c.date!) : undefined}
+              title={c.date ? `${c.date}: ${c.count} watched · ${c.hours}h` : ""}
+              style={{
+                background: c.date
+                  ? c.count
+                    ? `color-mix(in srgb, var(--accent) ${level(c.count) * 100}%, transparent)`
+                    : "var(--accent-subtle)"
+                  : "transparent",
+                cursor: clickable ? "pointer" : "default",
+              }}
+            />
+          );
+        })}
       </div>
       <div className="heat-legend" style={{ marginTop: 8 }}>
         <span>Less</span>
