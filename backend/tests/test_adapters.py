@@ -21,6 +21,10 @@ def _load(adapter_id: str, filename: str):
     return get_adapter(adapter_id).import_file(data, filename)
 
 
+def _load_bytes(adapter_id: str, data: bytes, filename: str = "inline.csv"):
+    return get_adapter(adapter_id).import_file(data, filename)
+
+
 def test_registry_has_core_adapters():
     ids = {a.id for a in list_adapters()}
     assert {"netflix_csv", "generic", "plex_api", "jellyfin_api", "trakt_api"} <= ids
@@ -36,6 +40,35 @@ def test_netflix_series_vs_movie():
 
     irishman = [e for e in events if e.clean_title == "The Irishman"]
     assert irishman and irishman[0].item_kind == "movie"
+
+    # 'Show: Episode' rows with no season marker (The Queen's Gambit) must group
+    # under one series title, not become one movie per episode.
+    qg = [e for e in events if e.clean_title == "The Queen's Gambit"]
+    assert len(qg) == 2
+    assert all(e.item_kind == "episode" for e in qg)
+    assert {e.episode_name for e in qg} == {"Openings", "Exchanges"}
+
+    # A genuine 2-part movie that appears once keeps its full title as a movie.
+    glass = [e for e in events if e.clean_title == "Glass Onion: A Knives Out Mystery"]
+    assert glass and glass[0].item_kind == "movie"
+
+
+def test_netflix_groups_unmarked_episodes_by_repeated_prefix():
+    csv_text = (
+        "Title,Date\n"
+        "Kingdom: The Hunger,01/01/2025\n"
+        "Kingdom: The Cure,01/02/2025\n"
+        "Okja,01/03/2025\n"
+        "Roma: A Long Subtitle Here,01/04/2025\n"
+    )
+    events = _load_bytes("netflix_csv", csv_text.encode("utf-8"))
+    kingdom = [e for e in events if e.clean_title == "Kingdom"]
+    assert len(kingdom) == 2 and all(e.item_kind == "episode" for e in kingdom)
+    # single-occurrence colon title stays a movie (not grouped)
+    roma = [e for e in events if e.clean_title == "Roma: A Long Subtitle Here"]
+    assert roma and roma[0].item_kind == "movie"
+    okja = [e for e in events if e.clean_title == "Okja"]
+    assert okja and okja[0].item_kind == "movie"
 
 
 def test_generic_csv_minutes_scaled_to_seconds():
