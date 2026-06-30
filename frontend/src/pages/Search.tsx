@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { api } from "../lib/api";
@@ -11,12 +12,13 @@ interface Provider { key: string; name: string; }
 export function Search() {
   const { scope } = useApp();
   const { t, lang } = useT();
-  const [q, setQ] = useState("");
-  const [genre, setGenre] = useState("");
-  const [actor, setActor] = useState("");
-  const [platform, setPlatform] = useState("");
-  const [year, setYear] = useState("");
-  const [kind, setKind] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [q, setQ] = useState(() => searchParams.get("q") || "");
+  const [genre, setGenre] = useState(() => searchParams.get("genre") || "");
+  const [actor, setActor] = useState(() => searchParams.get("actor") || "");
+  const [platform, setPlatform] = useState(() => searchParams.get("platform") || "");
+  const [year, setYear] = useState(() => searchParams.get("year") || "");
+  const [kind, setKind] = useState(() => searchParams.get("kind") || "");
   const [providers, setProviders] = useState<Provider[]>([]);
 
   const [results, setResults] = useState<any[] | null>(null);
@@ -25,6 +27,19 @@ export function Search() {
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => { api.get("/providers").then(setProviders).catch(() => {}); }, []);
+
+  // Persist active filters in the URL so they survive opening an item and
+  // navigating back (the component remounts and re-reads from the URL).
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    if (q) next.q = q;
+    if (genre) next.genre = genre;
+    if (actor) next.actor = actor;
+    if (platform) next.platform = platform;
+    if (year) next.year = year;
+    if (kind) next.kind = kind;
+    setSearchParams(next, { replace: true });
+  }, [q, genre, actor, platform, year, kind, setSearchParams]);
 
   const params = useMemo(() => ({ profile: scope, q, genre, actor, platform, year, kind, lang }),
     [scope, q, genre, actor, platform, year, kind, lang]);
