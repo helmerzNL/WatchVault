@@ -5,20 +5,24 @@ import { useT, providerLabel } from "../lib/i18n";
 import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Spark } from "../components/charts";
-import { Loading, ErrorState, Empty, Stat, Poster, Section, MonthNav, RangeSeg, type Range } from "../components/ui";
+import { Loading, ErrorState, Empty, Stat, Poster, Section, MonthNav, RangeSeg, Seg, type Range } from "../components/ui";
 import { fmtHours, fmtNum, monthKey, monthLabel } from "../lib/format";
 import { IconChart, IconImport } from "../components/icons";
 import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
+
+type RecentRange = "week" | "month" | "year";
 
 export function Dashboard() {
   const { scope, user } = useApp();
   const { t } = useT();
   const [month, setMonth] = useState(monthKey(new Date()));
   const [range, setRange] = useState<Range>("all");
+  const [recentRange, setRecentRange] = useState<RecentRange>("month");
 
   const summary = useFetch<any>(() => api.get("/stats/summary", { profile: scope }), [scope]);
   const providers = useFetch<any[]>(() => api.get("/stats/providers", { profile: scope, range }), [scope, range]);
   const month_ = useFetch<any[]>(() => api.get("/stats/month", { profile: scope, month }), [scope, month]);
+  const recent = useFetch<any[]>(() => api.get("/stats/recent", { profile: scope, range: recentRange }), [scope, recentRange]);
 
   if (summary.loading) return <Loading />;
   if (summary.error) return <ErrorState error={summary.error} retry={summary.reload} />;
@@ -34,9 +38,11 @@ export function Dashboard() {
     );
   }
 
-  const spark = (s.recent || []).map((r: any) => ({
+  const spark = (recent.data ?? s.recent ?? []).map((r: any) => ({
     label: r.date, value: r.count,
   }));
+  const recentTitle = recentRange === "week" ? "dashboard.last7"
+    : recentRange === "year" ? "dashboard.last12m" : "dashboard.last30";
 
   const scopeName = scope === "all" ? t("dashboard.theHousehold") : t("dashboard.thisProfile");
 
@@ -61,11 +67,16 @@ export function Dashboard() {
       <div className="card" style={{ marginBottom: 24 }}>
         <div className="row">
           <div className="col" style={{ gap: 2 }}>
-            <span className="headline">{t("dashboard.last30")}</span>
+            <span className="headline">{t(recentTitle)}</span>
             <span className="caption">{t("dashboard.thisMonthSummary", { events: fmtNum(s.this_month.events), hours: fmtHours(s.this_month.hours) })}</span>
           </div>
-          <div className="spacer" />
-          <Link to="/overviews" className="btn-ghost btn-sm"><IconChart width={16} height={16} /> {t("dashboard.trends")}</Link>
+          <div className="spacer" style={{ flex: 1 }} />
+          <Seg<RecentRange> value={recentRange} onChange={setRecentRange} options={[
+            { value: "week", label: t("overviews.week") },
+            { value: "month", label: t("overviews.month") },
+            { value: "year", label: t("overviews.year") },
+          ]} />
+          <Link to="/overviews" className="btn-ghost btn-sm" style={{ marginLeft: 8 }}><IconChart width={16} height={16} /> {t("dashboard.trends")}</Link>
         </div>
         {spark.length > 1 ? <Spark data={spark} height={70} /> :
           <p className="caption" style={{ marginTop: 12 }}>{t("dashboard.notEnoughTrend")}</p>}

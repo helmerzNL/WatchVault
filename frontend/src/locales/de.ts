@@ -68,6 +68,8 @@ const de = {
   "dashboard.totalWatchTime": "Gesamte Wiedergabezeit",
   "dashboard.uniqueTitles": "Eindeutige Titel",
   "dashboard.last30": "Letzte 30 Tage",
+  "dashboard.last7": "Letzte 7 Tage",
+  "dashboard.last12m": "Letzte 12 Monate",
   "dashboard.thisMonthSummary": "{events} diesen Monat · {hours}",
   "dashboard.trends": "Trends",
   "dashboard.notEnoughTrend": "Noch nicht genug Daten für einen Trend.",

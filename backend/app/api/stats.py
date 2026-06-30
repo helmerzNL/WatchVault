@@ -169,6 +169,49 @@ def providers_breakdown():
         key=lambda x: x["events"], reverse=True))
 
 
+@bp.get("/recent")
+@require_perm("catalog.read")
+def recent_activity():
+    """Activity time-series for the dashboard sparkline.
+
+    ``range`` selects the window and granularity:
+    ``week`` → last 7 days (daily), ``month`` → last 30 days (daily, default),
+    ``year`` → last 12 months (monthly). Returns ``[{date, count}]`` where
+    ``date`` is the day or the first-of-month for the bucket."""
+    ids = _ids()
+    if not ids:
+        return jsonify([])
+    rng = (request.args.get("range") or "month").lower()
+    if rng == "week":
+        rows = query_all(
+            "SELECT a.watched_date AS date, sum(a.events_count) AS count "
+            "FROM watch_daily_agg a WHERE a.user_id = ANY(%s::uuid[]) "
+            "AND a.watched_date >= current_date - interval '6 days' "
+            "GROUP BY a.watched_date ORDER BY a.watched_date",
+            (ids,),
+        )
+    elif rng == "year":
+        rows = query_all(
+            "SELECT date_trunc('month', a.watched_date)::date AS date, "
+            "  sum(a.events_count) AS count "
+            "FROM watch_daily_agg a WHERE a.user_id = ANY(%s::uuid[]) "
+            "AND a.watched_date >= date_trunc('month', now()) - interval '11 months' "
+            "GROUP BY date ORDER BY date",
+            (ids,),
+        )
+    else:
+        rows = query_all(
+            "SELECT a.watched_date AS date, sum(a.events_count) AS count "
+            "FROM watch_daily_agg a WHERE a.user_id = ANY(%s::uuid[]) "
+            "AND a.watched_date >= current_date - interval '29 days' "
+            "GROUP BY a.watched_date ORDER BY a.watched_date",
+            (ids,),
+        )
+    return jsonify([
+        {"date": r["date"].isoformat(), "count": int(r["count"])} for r in rows
+    ])
+
+
 @bp.get("/heatmap")
 @require_perm("catalog.read")
 def heatmap():

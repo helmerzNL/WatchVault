@@ -68,6 +68,8 @@ const nl = {
   "dashboard.totalWatchTime": "Totale kijktijd",
   "dashboard.uniqueTitles": "Unieke titels",
   "dashboard.last30": "Laatste 30 dagen",
+  "dashboard.last7": "Laatste 7 dagen",
+  "dashboard.last12m": "Laatste 12 maanden",
   "dashboard.thisMonthSummary": "{events} deze maand · {hours}",
   "dashboard.trends": "Trends",
   "dashboard.notEnoughTrend": "Nog niet genoeg gegevens voor een trend.",
