@@ -305,7 +305,7 @@ export function TitleDetail() {
   const { scope, can, toast } = useApp();
   const { t, lang } = useT();
   const tGenre = useGenre();
-  const { data: ti, loading, error, reload } = useFetch<any>(
+  const { data: ti, loading, error, reload, refresh } = useFetch<any>(
     () => api.get(`/search/title/${id}`, { profile: scope, lang }), [id, scope, lang]);
   const { data: providers } = useFetch<any[]>(() => api.get("/providers"), []);
   const [enriching, setEnriching] = useState(false);
@@ -353,7 +353,7 @@ export function TitleDetail() {
     try {
       await api.post(`/titles/${id}/watch`, { ...targetBody(), date });
       toast(t("title.watchAdded"), "ok");
-      reload();
+      refresh();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
   }
 
@@ -361,7 +361,7 @@ export function TitleDetail() {
     try {
       await api.del(`/titles/${id}/watch?date=${encodeURIComponent(date)}${scopeQ()}`);
       toast(t("title.watchRemoved"), "ok");
-      reload();
+      refresh();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
   }
 
@@ -371,21 +371,21 @@ export function TitleDetail() {
       try {
         await api.post(`/episodes/${episodeId}/watch`, { ...targetBody(), date });
         toast(t("title.watchAdded"), "ok");
-        reload();
+        refresh();
       } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
     },
     addSeason: async (season, date) => {
       try {
         const res = await api.post(`/titles/${id}/seasons/${season}/watch`, { ...targetBody(), date });
         toast(t("title.seasonMarked", { n: res.inserted || 0 }), "ok");
-        reload();
+        refresh();
       } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
     },
     removeEpisode: async (episodeId, date) => {
       try {
         await api.del(`/episodes/${episodeId}/watch?date=${encodeURIComponent(date)}${scopeQ()}`);
         toast(t("title.watchRemoved"), "ok");
-        reload();
+        refresh();
       } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
     },
   };
