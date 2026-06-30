@@ -124,6 +124,7 @@ const en = {
   "imports.title": "Imports & sync",
   "imports.importFile": "Import a file",
   "imports.netflixHelp": "Netflix: Account → Profile → Viewing activity → Download all. Drop the CSV here. Other services: use a generic CSV/JSON export.",
+  "imports.cinemaFormat": "Cinema: the CSV format must be 'date, film title' — one film per line (e.g. 2025-01-12, Dune: Part Two). A header row is optional.",
   "imports.provider": "Provider",
   "imports.attributeTo": "Attribute to",
   "imports.importing": "Importing…",

@@ -124,6 +124,7 @@ const it = {
   "imports.title": "Importazioni e sincronizzazione",
   "imports.importFile": "Importa un file",
   "imports.netflixHelp": "Netflix: Account → Profilo → Attività di visione → Scarica tutto. Trascina qui il CSV. Altri servizi: usa un'esportazione CSV/JSON generica.",
+  "imports.cinemaFormat": "Cinema: il formato CSV deve essere 'data, titolo del film' — un film per riga (es. 2025-01-12, Dune: Part Two). Una riga di intestazione è facoltativa.",
   "imports.provider": "Provider",
   "imports.attributeTo": "Attribuisci a",
   "imports.importing": "Importazione…",

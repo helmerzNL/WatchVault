@@ -27,7 +27,40 @@ def _load_bytes(adapter_id: str, data: bytes, filename: str = "inline.csv"):
 
 def test_registry_has_core_adapters():
     ids = {a.id for a in list_adapters()}
-    assert {"netflix_csv", "generic", "plex_api", "jellyfin_api", "trakt_api"} <= ids
+    assert {"netflix_csv", "generic", "plex_api", "jellyfin_api", "trakt_api", "cinema"} <= ids
+
+
+def test_cinema_csv_date_title():
+    csv_text = (
+        "2025-01-12, Dune: Part Two\n"
+        "2025-02-03, Oppenheimer\n"
+        "14/03/2025, The Brutalist\n"
+    )
+    events = _load_bytes("cinema", csv_text.encode("utf-8"))
+    assert len(events) == 3
+    assert all(e.item_kind == "movie" for e in events)
+    titles = {e.clean_title for e in events}
+    # A title containing a colon (and comma-free) is preserved verbatim.
+    assert "Dune: Part Two" in titles
+    dune = next(e for e in events if e.clean_title == "Dune: Part Two")
+    assert dune.watched_at.date().isoformat() == "2025-01-12"
+
+
+def test_cinema_csv_skips_header_and_keeps_comma_titles():
+    csv_text = (
+        "datum,filmtitel\n"
+        '2025-04-01,"Crouching Tiger, Hidden Dragon"\n'
+    )
+    events = _load_bytes("cinema", csv_text.encode("utf-8"))
+    assert len(events) == 1
+    assert events[0].clean_title == "Crouching Tiger, Hidden Dragon"
+
+
+def test_cinema_csv_tolerates_title_first():
+    events = _load_bytes("cinema", b"Oppenheimer, 2025-02-03\n")
+    assert len(events) == 1
+    assert events[0].clean_title == "Oppenheimer"
+    assert events[0].watched_at.date().isoformat() == "2025-02-03"
 
 
 def test_netflix_series_vs_movie():

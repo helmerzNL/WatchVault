@@ -68,6 +68,11 @@ function FileImport({ providers, onDone }: { providers: Provider[]; onDone: () =
           </select>
         </div>
       </div>
+      {provider === "cinema" && (
+        <p className="caption" style={{ marginBottom: 14 }}>
+          {t("imports.cinemaFormat")}
+        </p>
+      )}
       <input ref={fileRef} type="file" accept=".csv,.json,.tsv,text/csv,application/json" style={{ marginBottom: 14 }} />
       <button className="btn-primary" disabled={busy} onClick={submit}>
         {busy ? t("imports.importing") : t("imports.importFileBtn")}

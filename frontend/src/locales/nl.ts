@@ -124,6 +124,7 @@ const nl = {
   "imports.title": "Imports & synchronisatie",
   "imports.importFile": "Een bestand importeren",
   "imports.netflixHelp": "Netflix: Account → Profiel → Kijkactiviteit → Alles downloaden. Zet de CSV hier neer. Andere diensten: gebruik een algemene CSV/JSON-export.",
+  "imports.cinemaFormat": "Bioscoop: het CSV-formaat moet 'datum, filmtitel' zijn — één film per regel (bijv. 2025-01-12, Dune: Part Two). Een koprij is optioneel.",
   "imports.provider": "Provider",
   "imports.attributeTo": "Toewijzen aan",
   "imports.importing": "Importeren…",

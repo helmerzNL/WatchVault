@@ -3,6 +3,7 @@ provider is just implementing SourceAdapter and registering it here."""
 from __future__ import annotations
 
 from .base import SourceAdapter
+from .cinema import CinemaAdapter
 from .generic import GenericAdapter
 from .jellyfin import JellyfinAdapter
 from .netflix import NetflixAdapter
@@ -16,7 +17,8 @@ def register(adapter: SourceAdapter) -> None:
     _ADAPTERS[adapter.id] = adapter
 
 
-for _a in (NetflixAdapter(), GenericAdapter(), PlexAdapter(), JellyfinAdapter(), TraktAdapter()):
+for _a in (NetflixAdapter(), GenericAdapter(), PlexAdapter(), JellyfinAdapter(),
+           TraktAdapter(), CinemaAdapter()):
     register(_a)
 
 
