@@ -54,3 +54,19 @@ export const IconRefresh = (p: SVGProps<SVGSVGElement>) => (
 export const IconCalendar = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></svg>
 );
+
+// The WatchVault brand mark. Its gradient follows the accent colour live via
+// CSS (see .wv-logo rules), so changing the accent recolours the logo too.
+export const IconLogo = ({ size = 28 }: { size?: number }) => (
+  <svg className="wv-logo" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
+    <defs>
+      <linearGradient id="wv-logo-g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" className="wv-logo-s0" />
+        <stop offset="1" className="wv-logo-s1" />
+      </linearGradient>
+    </defs>
+    <rect width="64" height="64" rx="14" fill="url(#wv-logo-g)" />
+    <path d="M20 22h24a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H20a3 3 0 0 1-3-3V25a3 3 0 0 1 3-3z" fill="rgba(255,255,255,0.18)" />
+    <path d="M28 28l10 6-10 6z" fill="#fff" />
+  </svg>
+);

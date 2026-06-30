@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, Section } from "../components/ui";
-import { IconPlus, IconUsers } from "../components/icons";
+import { IconPlus, IconUsers, IconSettings, IconChevron } from "../components/icons";
 import { initials, fmtNum, fmtDate, ACCENTS } from "../lib/format";
 
 export function Profiles() {
@@ -137,6 +138,17 @@ export function Profiles() {
           </div>
         </div>
       </div>
+
+      <Link to="/settings" className="card nav-card mobile-only" style={{ marginTop: 20 }}>
+        <div className="row">
+          <IconSettings width={20} height={20} />
+          <div className="col" style={{ gap: 2, flex: 1 }}>
+            <span className="headline">{t("nav.settings")}</span>
+            <span className="caption">{t("profiles.openSettingsHelp")}</span>
+          </div>
+          <IconChevron width={18} height={18} />
+        </div>
+      </Link>
     </>
   );
 }

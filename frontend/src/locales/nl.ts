@@ -166,6 +166,7 @@ const nl = {
   "profiles.profileRemoved": "Profiel verwijderd",
   "profiles.howMembersJoin": "Hoe leden meedoen",
   "profiles.howMembersJoinHelp": "Een beheerder voegt hier een lid toe en deelt de eenmalige herstelcode. Het lid opent WatchVault, kiest “Herstelcode gebruiken” en maakt een eigen passkey — nergens wachtwoorden.",
+  "profiles.openSettingsHelp": "Weergave, huishouden, plug-ins, koppelingen en meer.",
 
   // ── Settings ────────────────────────────────────────────────────────────
   "settings.title": "Instellingen",
@@ -227,6 +228,14 @@ const nl = {
   "title.couldntEnrich": "Kon niet verrijken ({status})",
   "title.watchHistory": "Kijkgeschiedenis",
   "title.noEvents": "Geen kijkgebeurtenissen voor dit profiel.",
+  "title.episodes": "Afleveringen",
+  "title.seasonN": "Seizoen {n}",
+  "title.specials": "Specials",
+  "title.episodeN": "Aflevering {n}",
+  "title.watched": "Bekeken",
+  "title.notWatched": "Niet bekeken",
+  "title.watchedOn": "Bekeken op {date}",
+  "title.watchedOfEpisodes": "{watched} van {total} afleveringen bekeken",
 
   // ── Person ──────────────────────────────────────────────────────────────
   "person.biography": "Biografie",

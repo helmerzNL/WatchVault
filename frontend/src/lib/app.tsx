@@ -3,6 +3,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api";
+import { applyBrandIcons } from "./branding";
 
 export interface User {
   id: string;
@@ -61,7 +62,10 @@ function applyTheme(prefs: Prefs) {
   const root = document.documentElement;
   if (prefs.theme === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", prefs.theme);
-  if (prefs.accent) root.style.setProperty("--accent", prefs.accent);
+  if (prefs.accent) {
+    root.style.setProperty("--accent", prefs.accent);
+    applyBrandIcons(prefs.accent);
+  }
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {

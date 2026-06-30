@@ -79,6 +79,28 @@ button:disabled { opacity: 0.5; cursor: default; }
 .btn-sm { min-height: 34px; padding: 6px 12px; font-size: 0.85rem; }
 .btn-danger { background: transparent; color: #ff3b30; border-color: rgba(255,59,48,0.4); }
 
+/* Back link — clearly visible, optically aligned (tighter left padding for the chevron) */
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 7px 16px 7px 10px;
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+.btn-back:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.btn-back:active { transform: scale(0.97); }
+.btn-back svg { flex-shrink: 0; }
+
 input, select, textarea {
   font: inherit;
   color: var(--text);
@@ -126,6 +148,10 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 }
 .brand { display: flex; align-items: center; gap: var(--space-2); font-weight: 800; font-size: 1.1rem; }
 .brand img { width: 28px; height: 28px; border-radius: 8px; }
+.wv-logo { display: block; border-radius: 8px; flex-shrink: 0; }
+/* Brand mark gradient tracks the accent colour live */
+.wv-logo-s0 { stop-color: var(--accent); }
+.wv-logo-s1 { stop-color: color-mix(in srgb, var(--accent) 68%, #000); }
 .spacer { flex: 1; }
 
 /* Desktop nav */
@@ -181,7 +207,12 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
   .nav-links { display: none; }
   .tabbar { display: flex; }
   .app-main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  .mobile-only { display: block; }
 }
+.mobile-only { display: none; }
+.nav-card { display: block; color: var(--text); text-decoration: none; transition: border-color 0.15s ease, background 0.15s ease; }
+.nav-card:active { background: var(--accent-subtle); }
+.nav-card .row > svg:last-child { color: var(--text-secondary); transform: rotate(90deg); flex-shrink: 0; }
 
 /* Grids */
 .stat-grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
@@ -363,6 +394,64 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 .cast-card {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   text-align: center; width: 84px; flex-shrink: 0;
+}
+
+/* Seasons & episodes */
+.season-tabs { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; }
+.season-tabs .chip { flex-shrink: 0; white-space: nowrap; }
+.season-tab-count {
+  font-size: 0.72rem; font-weight: 700; opacity: 0.7;
+  padding-left: 6px; margin-left: 2px; border-left: 1px solid currentColor;
+}
+.season-panel { padding: 0; overflow: hidden; }
+.season-progress { padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--hairline); }
+.episode-list { display: flex; flex-direction: column; }
+.episode-row {
+  display: flex; gap: var(--space-4); align-items: flex-start;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--hairline);
+}
+.episode-row:last-child { border-bottom: none; }
+.episode-still {
+  position: relative; width: 150px; aspect-ratio: 16 / 9; flex-shrink: 0;
+  border-radius: var(--radius-sm); overflow: hidden;
+  background: var(--bg-elev); border: 1px solid var(--hairline);
+  display: flex; align-items: center; justify-content: center;
+}
+.episode-still img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.episode-row:not(.is-watched) .episode-still img { opacity: 0.5; filter: saturate(0.7); }
+.episode-still-ph { color: var(--text-tertiary); font-weight: 800; font-size: 1.2rem; }
+.episode-check {
+  position: absolute; top: 6px; left: 6px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-text);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm);
+}
+.episode-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.episode-head { display: flex; align-items: center; gap: 10px; }
+.episode-num {
+  flex-shrink: 0; min-width: 26px; height: 26px; padding: 0 7px;
+  border-radius: var(--radius-sm); background: var(--accent-subtle); color: var(--accent);
+  font-weight: 800; font-size: 0.85rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.episode-name {
+  font-size: 0.98rem; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.episode-overview {
+  color: var(--text-secondary); font-size: 0.88rem; line-height: 1.45; margin: 2px 0 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.episode-status { font-size: 0.78rem; font-weight: 600; color: var(--text-tertiary); margin-top: 2px; }
+.episode-status.on { color: var(--accent); }
+
+@media (max-width: 560px) {
+  .episode-row { gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+  .episode-still { width: 104px; }
+  .season-progress { padding: var(--space-4); }
+  .episode-name { font-size: 0.92rem; white-space: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -154,6 +154,31 @@ def apply_title_details(cur, title_id: str, details: dict, source: str) -> None:
         link_person(cur, title_id, c, "crew")
 
 
+def upsert_episode(cur, title_id: str, ep: dict) -> None:
+    """Fill/refresh one episode's metadata (fill-empty for scalars). Season/episode
+    numbers are required; rows created during ingest (name only) get enriched here."""
+    season = ep.get("season_number")
+    number = ep.get("episode_number")
+    if number is None or season is None:
+        return
+    cur.execute(
+        "INSERT INTO title_episodes "
+        "  (title_id, season, episode, name, overview, air_date, runtime_minutes, "
+        "   still_path, tmdb_id, normalized_key) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+        "ON CONFLICT (title_id, season, episode) DO UPDATE SET "
+        "  name            = COALESCE(NULLIF(title_episodes.name, ''), EXCLUDED.name), "
+        "  overview        = COALESCE(NULLIF(title_episodes.overview, ''), EXCLUDED.overview), "
+        "  air_date        = COALESCE(title_episodes.air_date, EXCLUDED.air_date), "
+        "  runtime_minutes = COALESCE(title_episodes.runtime_minutes, EXCLUDED.runtime_minutes), "
+        "  still_path      = COALESCE(title_episodes.still_path, EXCLUDED.still_path), "
+        "  tmdb_id         = COALESCE(title_episodes.tmdb_id, EXCLUDED.tmdb_id)",
+        (title_id, int(season), int(number), ep.get("name"), ep.get("overview"),
+         ep.get("air_date"), ep.get("runtime_minutes"), ep.get("still_path"),
+         ep.get("tmdb_id"), normalize_text(ep.get("name") or "")),
+    )
+
+
 def apply_person_details(cur, person_id: str, details: dict, source: str) -> None:
     """Merge person bio details (fill-empty scalars, merge biography map)."""
     biographies = {k: v for k, v in (details.get("biographies") or {}).items() if v}

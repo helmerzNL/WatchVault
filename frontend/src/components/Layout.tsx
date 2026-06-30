@@ -5,7 +5,7 @@ import { useT } from "../lib/i18n";
 import { LanguagePicker } from "./LanguagePicker";
 import { initials } from "../lib/format";
 import {
-  IconChart, IconChevron, IconHome, IconImport, IconSearch, IconSettings, IconUsers,
+  IconChart, IconChevron, IconHome, IconImport, IconLogo, IconSearch, IconSettings, IconUsers,
 } from "./icons";
 
 function ProfileSwitcher() {
@@ -73,7 +73,7 @@ export function Layout() {
     <div className="app-shell">
       <header className="topbar glass">
         <Link to="/" className="brand">
-          <img src="/favicon.svg" alt="" />
+          <IconLogo size={28} />
           <span>WatchVault</span>
         </Link>
         <nav className="nav-links">
