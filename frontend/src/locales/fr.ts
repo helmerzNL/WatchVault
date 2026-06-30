@@ -72,6 +72,7 @@ const fr = {
   "dashboard.trends": "Tendances",
   "dashboard.notEnoughTrend": "Pas encore assez de données pour une tendance.",
   "dashboard.byPlatform": "Par plateforme",
+  "dashboard.noPlatformPeriod": "Aucune donnée pour cette période",
   "dashboard.watchedIn": "Vu en {month}",
   "dashboard.allMonths": "Tous les mois",
   "dashboard.nothingThisMonth": "Rien vu ce mois-ci pour le moment.",

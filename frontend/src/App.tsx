@@ -13,9 +13,16 @@ import { Settings } from "./pages/Settings";
 import { TitleDetail } from "./pages/TitleDetail";
 import { Person } from "./pages/Person";
 import { GenreTitles } from "./pages/GenreTitles";
+import { useT } from "./lib/i18n";
+import { setFormatLocale } from "./lib/format";
 
 export function App() {
   const { ready, user } = useApp();
+  const { lang } = useT();
+  // Drive written-out date language from the in-app language (not the browser
+  // locale). Set during render so the first paint already uses the right
+  // language; the setter is an idempotent module-cache write.
+  setFormatLocale(lang);
 
   return (
     <>

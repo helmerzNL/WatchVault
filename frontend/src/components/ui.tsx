@@ -121,12 +121,12 @@ export function MonthNav({ value, onChange }: { value: string; onChange: (v: str
     <div className="month-nav">
       <button type="button" className="month-nav-btn" onClick={() => shift(-1)}
         aria-label={t("common.prevMonth")}>
-        <IconChevron width={18} height={18} style={{ transform: "rotate(180deg)" }} />
+        <IconChevron width={16} height={16} style={{ transform: "rotate(180deg)" }} />
       </button>
       <span className="month-nav-label">{monthLabel(value)}</span>
       <button type="button" className="month-nav-btn" onClick={() => shift(1)} disabled={atCurrent}
         aria-label={t("common.nextMonth")}>
-        <IconChevron width={18} height={18} />
+        <IconChevron width={16} height={16} />
       </button>
     </div>
   );

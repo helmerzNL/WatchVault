@@ -71,27 +71,30 @@ export function Dashboard() {
           <p className="caption" style={{ marginTop: 12 }}>{t("dashboard.notEnoughTrend")}</p>}
       </div>
 
-      {(providers.data?.length ?? 0) > 0 && (
+      {!summary.error && !summary.loading && (
         <div className="card" style={{ marginBottom: 24 }}>
           <div className="row" style={{ marginBottom: 4 }}>
             <span className="headline">{t("dashboard.byPlatform")}</span>
             <div className="spacer" style={{ flex: 1 }} />
             <RangeSeg value={range} onChange={setRange} />
           </div>
-          <div className="col" style={{ marginTop: 12, gap: 12 }}>
-            {(() => {
-              const maxH = Math.max(...providers.data!.map((x: any) => x.hours), 1);
-              return providers.data!.map((p: any) => (
-                <div key={p.key} className="row" style={{ gap: 12 }}>
-                  <span style={{ width: 92, fontWeight: 600, fontSize: "0.9rem" }}>{providerLabel(t, p.key, p.name)}</span>
-                  <div className="bar-track" style={{ flex: 1 }}>
-                    <div className="bar-fill" style={{ width: `${(p.hours / maxH) * 100}%`, background: p.color || "var(--accent)" }} />
-                  </div>
-                  <span className="caption" style={{ width: 60, textAlign: "right" }}>{fmtHours(p.hours)}</span>
-                </div>
-              ));
-            })()}
-          </div>
+          {providers.loading ? <div style={{ marginTop: 12 }}><Loading /></div> :
+            (providers.data?.length ?? 0) > 0 ? (
+              <div className="col" style={{ marginTop: 12, gap: 12 }}>
+                {(() => {
+                  const maxH = Math.max(...providers.data!.map((x: any) => x.hours), 1);
+                  return providers.data!.map((p: any) => (
+                    <div key={p.key} className="row" style={{ gap: 12 }}>
+                      <span style={{ width: 92, fontWeight: 600, fontSize: "0.9rem" }}>{providerLabel(t, p.key, p.name)}</span>
+                      <div className="bar-track" style={{ flex: 1 }}>
+                        <div className="bar-fill" style={{ width: `${(p.hours / maxH) * 100}%`, background: p.color || "var(--accent)" }} />
+                      </div>
+                      <span className="caption" style={{ width: 60, textAlign: "right" }}>{fmtHours(p.hours)}</span>
+                    </div>
+                  ));
+                })()}
+              </div>
+            ) : <p className="muted" style={{ marginTop: 12 }}>{t("dashboard.noPlatformPeriod")}</p>}
         </div>
       )}
 

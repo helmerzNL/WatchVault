@@ -12,6 +12,20 @@ export function parseLocalDate(iso: string): Date {
   return new Date(iso);
 }
 
+// Locale tag (e.g. "nl", "de") that drives the *language* of written-out dates.
+// Set from the app's selected language so month/date names follow the in-app
+// language rather than the browser locale. The timezone is never overridden, so
+// dates still render in the device's local timezone.
+let formatLocale: string | undefined = undefined;
+
+export function setFormatLocale(lang?: string): void {
+  formatLocale = lang || undefined;
+}
+
+export function localeTag(): string | undefined {
+  return formatLocale;
+}
+
 // Local calendar date as YYYY-MM-DD (not UTC), for "today/yesterday" pickers.
 export function localDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -35,7 +49,7 @@ export function fmtNum(n: number): string {
 
 export function fmtDate(iso: string): string {
   try {
-    return parseLocalDate(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    return parseLocalDate(iso).toLocaleDateString(formatLocale, { day: "numeric", month: "short", year: "numeric" });
   } catch {
     return iso;
   }
@@ -43,7 +57,7 @@ export function fmtDate(iso: string): string {
 
 export function fmtMonth(iso: string): string {
   // iso like 2025-03-01 or 2025-03
-  return parseLocalDate(iso).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  return parseLocalDate(iso).toLocaleDateString(formatLocale, { month: "short", year: "numeric" });
 }
 
 export function monthKey(d: Date): string {
@@ -52,7 +66,7 @@ export function monthKey(d: Date): string {
 
 export function monthLabel(key: string): string {
   const [y, m] = key.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return new Date(y, m - 1, 1).toLocaleDateString(formatLocale, { month: "long", year: "numeric" });
 }
 
 export function initials(name: string): string {

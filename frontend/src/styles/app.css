@@ -309,20 +309,28 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 }
 .seg button.active { background: var(--bg-elev); color: var(--text); box-shadow: var(--shadow-sm); }
 
-/* Month navigator (‹ Maand ›) */
-.month-nav { display: inline-flex; align-items: center; gap: 4px; }
+/* Month navigator (‹ Maand ›) — iOS/macOS stepper feel */
+.month-nav {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px;
+  box-shadow: var(--shadow-sm);
+}
 .month-nav-label {
-  min-width: 9.5rem; text-align: center; font-weight: 600; font-size: 0.9rem;
-  color: var(--text);
+  min-width: 8.5rem; text-align: center; font-weight: 600; font-size: 0.875rem;
+  letter-spacing: -0.01em; color: var(--text); padding: 0 2px;
 }
 .month-nav-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: var(--radius-pill);
-  background: var(--accent-subtle); color: var(--text-secondary);
-  transition: background .15s ease, color .15s ease;
+  width: 30px; height: 30px; border-radius: 8px;
+  background: transparent; color: var(--accent);
+  transition: background .15s ease, transform .1s ease, opacity .1s ease;
 }
-.month-nav-btn:hover:not(:disabled) { background: var(--bg-elev); color: var(--text); box-shadow: var(--shadow-sm); }
-.month-nav-btn:disabled { opacity: 0.35; cursor: default; }
+.month-nav-btn:hover:not(:disabled) { background: var(--accent-subtle); }
+.month-nav-btn:active:not(:disabled) { transform: scale(0.9); opacity: 0.6; }
+.month-nav-btn:disabled { color: var(--text-secondary); opacity: 0.32; cursor: default; }
 
 /* Section header */
 .section-head { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-6) 0 var(--space-4); }

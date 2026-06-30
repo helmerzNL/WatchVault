@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { localeTag } from "../lib/format";
 
 interface Day { date: string; count: number; hours: number; }
 
@@ -30,7 +31,7 @@ export function Heatmap({ days, year, selected, onSelect }: {
       if (cur.getUTCDay() === 0) {
         const m = cur.getUTCMonth();
         if (inYear && m !== lastMonth) {
-          months.push({ col, label: new Date(Date.UTC(year, m, 1)).toLocaleDateString(undefined, { month: "short" }) });
+          months.push({ col, label: new Date(Date.UTC(year, m, 1)).toLocaleDateString(localeTag(), { month: "short" }) });
           lastMonth = m;
         }
         col++;

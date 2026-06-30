@@ -72,6 +72,7 @@ const nl = {
   "dashboard.trends": "Trends",
   "dashboard.notEnoughTrend": "Nog niet genoeg gegevens voor een trend.",
   "dashboard.byPlatform": "Per platform",
+  "dashboard.noPlatformPeriod": "Geen data over deze periode",
   "dashboard.watchedIn": "Bekeken in {month}",
   "dashboard.allMonths": "Alle maanden",
   "dashboard.nothingThisMonth": "Deze maand nog niets bekeken.",
