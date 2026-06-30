@@ -201,3 +201,155 @@ def test_generic_push_requires_auth():
     client = app.test_client()
     resp = client.post("/api/scrobble/generic", json={"title": "X", "event": "play"})
     assert resp.status_code == 401
+
+
+# ── Self-deadlock fix: single-transaction commit (DB-free) ──────────────────
+#
+# The bug: handle_scrobble held an open transaction with an uncommitted INSERT on
+# the titles unique index (a first-seen title), then ingest_events opened a SECOND
+# pooled connection and re-resolved the same title — which blocked in Postgres
+# waiting for the first transaction to commit, while the first waited in Python for
+# ingest_events to return. The fix threads the open cursor into ingest_events so the
+# whole commit is one transaction (no second connection). These tests pin that
+# contract without a live database.
+
+from app.ingest import normalize as _normalize  # noqa: E402
+from app.ingest import scrobble as _scrobble     # noqa: E402
+from app.ingest.models import NormalizedEvent    # noqa: E402
+
+
+class SmartCursor:
+    """In-memory cursor that emulates just enough SQL for the ingest/scrobble
+    paths: it tracks created titles (by kind+normalized_key) and inserted
+    watch_events (by dedup_hash) so first-seen vs. dedup behavior is observable."""
+    def __init__(self):
+        self.titles: dict[tuple, str] = {}
+        self.dedup_hashes: set[str] = set()
+        self.title_seq = 0
+        self.executed: list[str] = []
+        self._last = None
+
+    def execute(self, sql, params=None):
+        self.executed.append(sql)
+        s = " ".join(sql.split())
+        self._last = None
+        if "FROM providers" in s:
+            self._last = {"id": "prov-1"}
+        elif "scrobble_account_map" in s:
+            self._last = {"user_id": "profile-1"}
+        elif "INSERT INTO scrobble_sessions" in s:
+            self._last = {"id": "sess-1", "committed_at": None}
+        elif "FROM titles WHERE tmdb_id" in s:
+            self._last = None
+        elif "FROM titles WHERE kind" in s:
+            kind, norm = params
+            self._last = ({"id": self.titles[(kind, norm)]}
+                          if (kind, norm) in self.titles else None)
+        elif s.startswith("INSERT INTO titles"):
+            kind, _title, _year, _tmdb, _ext, norm = params
+            self.title_seq += 1
+            tid = f"title-{self.title_seq}"
+            self.titles[(kind, norm)] = tid
+            self._last = {"id": tid}
+        elif "FROM title_episodes" in s:
+            self._last = None
+        elif s.startswith("INSERT INTO title_episodes"):
+            self._last = {"id": "ep-1"}
+        elif "INSERT INTO watch_events" in s:
+            dh = params[-1]
+            if dh in self.dedup_hashes:
+                self._last = None          # ON CONFLICT DO NOTHING -> no row
+            else:
+                self.dedup_hashes.add(dh)
+                self._last = {"id": f"we-{len(self.dedup_hashes)}"}
+        # everything else (UPDATEs, agg recompute, background_jobs) returns nothing
+
+    def fetchone(self):
+        return self._last
+
+    def fetchall(self):
+        return []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _new_movie_event(title="Brand New Movie"):
+    from app.util import now_utc
+    return NormalizedEvent(
+        raw_title=title, clean_title=title, watched_at=now_utc(),
+        kind="movie", completed=True, raw={"source": "homeassistant", "scrobble": True},
+    )
+
+
+def test_ingest_events_with_cursor_opens_no_second_connection(monkeypatch):
+    # The literal deadlock regression guard: when a cursor is threaded in,
+    # ingest_events must NOT open another pooled connection.
+    def _boom(*a, **k):
+        raise AssertionError("ingest_events opened a second connection")
+    monkeypatch.setattr(_normalize, "connection", _boom)
+
+    cur = SmartCursor()
+    summary = _normalize.ingest_events("user-1", "prov-1", None,
+                                       [_new_movie_event()], cur=cur)
+    assert summary["inserted"] == 1
+    assert summary["titles_created"] == 1
+    # The new title was created exactly once, on the same cursor.
+    assert len(cur.titles) == 1
+
+
+def test_ingest_events_threaded_creates_title_once_then_dedups():
+    cur = SmartCursor()
+    ev = _new_movie_event()
+    first = _normalize.ingest_events("user-1", "prov-1", None, [ev], cur=cur)
+    second = _normalize.ingest_events("user-1", "prov-1", None, [ev], cur=cur)
+    assert first["inserted"] == 1 and first["titles_created"] == 1
+    # Same title + day -> identical dedup_hash -> no duplicate watch_event, no new title.
+    assert second["inserted"] == 0 and second["duplicates"] == 1
+    assert second["titles_created"] == 0
+    assert len(cur.titles) == 1
+    assert len(cur.dedup_hashes) == 1
+
+
+def test_handle_scrobble_new_title_commits_in_one_transaction(monkeypatch):
+    # Prove handle_scrobble threads its OWN open cursor into ingest_events (so the
+    # title INSERT and the watch_event land in one transaction) and returns promptly
+    # with committed=True for a first-seen title.
+    cur = SmartCursor()
+
+    class FakeConn:
+        def cursor(self):
+            return cur
+        def commit(self):
+            pass
+        def rollback(self):
+            pass
+
+    import contextlib
+
+    @contextlib.contextmanager
+    def fake_connection():
+        yield FakeConn()
+
+    monkeypatch.setattr(_scrobble, "connection", fake_connection)
+
+    captured = {}
+
+    def fake_ingest(user_id, provider_id, source_connection_id, events, cur=None):
+        captured["cur"] = cur
+        return {"inserted": 1, "duplicates": 0, "titles_created": 1,
+                "titles_touched": 1, "series_title_ids": []}
+
+    monkeypatch.setattr(_scrobble, "ingest_events", fake_ingest)
+
+    evt = parse_generic_payload({"title": "Brand New Movie", "event": "scrobble"})
+    result = _scrobble.handle_scrobble("hh-1", evt, "token-user")
+
+    assert result["committed"] is True
+    # Same cursor object was threaded through -> single transaction, no 2nd connection.
+    assert captured["cur"] is cur
+    # lock_timeout hardening is set at the start of the transaction.
+    assert any("lock_timeout" in s for s in cur.executed)

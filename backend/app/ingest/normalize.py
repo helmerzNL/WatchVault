@@ -87,8 +87,25 @@ def _apply_source_metadata(cur, title_id: str, ev: NormalizedEvent) -> None:
 
 
 def ingest_events(user_id: str, provider_id: str, source_connection_id: str | None,
-                  events: Iterable[NormalizedEvent]) -> dict:
-    """Insert normalized events with dedup; returns a summary and new title ids."""
+                  events: Iterable[NormalizedEvent], cur=None) -> dict:
+    """Insert normalized events with dedup; returns a summary and new title ids.
+
+    When ``cur`` is None (file import, sync scheduler) a fresh transactional
+    connection is opened and committed here. When the caller passes an already-open
+    cursor, all SQL runs on it and nothing is committed — the caller owns the
+    transaction. The scrobble commit path uses this so the title INSERT happens on
+    the same connection that already holds the uncommitted title-lock, instead of a
+    second pooled connection that would block forever on it (a self-deadlock the
+    Postgres deadlock detector can't see)."""
+    if cur is not None:
+        return _ingest_events(user_id, provider_id, source_connection_id, events, cur)
+    with connection() as conn, conn.cursor() as cur:
+        return _ingest_events(user_id, provider_id, source_connection_id, events, cur)
+
+
+def _ingest_events(user_id: str, provider_id: str, source_connection_id: str | None,
+                   events: Iterable[NormalizedEvent], cur) -> dict:
+    """Core ingest logic, run on a caller-owned cursor (no connection/commit here)."""
     inserted = 0
     duplicates = 0
     titles_created: list[str] = []
@@ -97,61 +114,60 @@ def ingest_events(user_id: str, provider_id: str, source_connection_id: str | No
     meta_applied: set[str] = set()
     affected_dates: set = set()
 
-    with connection() as conn, conn.cursor() as cur:
-        for ev in events:
-            clean = (ev.clean_title or ev.raw_title or "").strip()
-            if not clean:
-                continue
-            title_id, created = _resolve_title(
-                cur, ev.title_kind, clean, ev.year, ev.tmdb_id, ev.external_ids
-            )
-            if created:
-                titles_created.append(title_id)
-            touched_titles.add(title_id)
-            if ev.title_kind == "series":
-                series_titles.add(title_id)
-            # Capture source-native metadata once per title per ingest run.
-            if ev.metadata and title_id not in meta_applied:
-                meta_applied.add(title_id)
-                _apply_source_metadata(cur, title_id, ev)
-            episode_id = _resolve_episode(
-                cur, title_id, ev.season, ev.episode, ev.episode_name
-            )
-            watched_date = ev.watched_at.date()
-            ep_token = ev.episode if ev.episode is not None else normalize_text(ev.episode_name or "")
-            dh = dedup_hash(user_id, provider_id, normalize_text(clean),
-                            ev.season, ep_token, watched_date)
-            cur.execute(
-                "INSERT INTO watch_events "
-                "(user_id, provider_id, source_connection_id, title_id, episode_id, "
-                " item_kind, raw_title, season, episode, watched_at, watched_date, "
-                " duration_seconds, progress_percent, completed, raw, dedup_hash) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
-                "ON CONFLICT (dedup_hash) DO NOTHING RETURNING id",
-                (user_id, provider_id, source_connection_id, title_id, episode_id,
-                 ev.item_kind, ev.raw_title, ev.season, ev.episode, ev.watched_at,
-                 watched_date, ev.duration_seconds, ev.progress_percent, ev.completed,
-                 _jsonb(ev.raw), dh),
-            )
-            if cur.fetchone():
-                inserted += 1
-                affected_dates.add(watched_date)
-            else:
-                duplicates += 1
+    for ev in events:
+        clean = (ev.clean_title or ev.raw_title or "").strip()
+        if not clean:
+            continue
+        title_id, created = _resolve_title(
+            cur, ev.title_kind, clean, ev.year, ev.tmdb_id, ev.external_ids
+        )
+        if created:
+            titles_created.append(title_id)
+        touched_titles.add(title_id)
+        if ev.title_kind == "series":
+            series_titles.add(title_id)
+        # Capture source-native metadata once per title per ingest run.
+        if ev.metadata and title_id not in meta_applied:
+            meta_applied.add(title_id)
+            _apply_source_metadata(cur, title_id, ev)
+        episode_id = _resolve_episode(
+            cur, title_id, ev.season, ev.episode, ev.episode_name
+        )
+        watched_date = ev.watched_at.date()
+        ep_token = ev.episode if ev.episode is not None else normalize_text(ev.episode_name or "")
+        dh = dedup_hash(user_id, provider_id, normalize_text(clean),
+                        ev.season, ep_token, watched_date)
+        cur.execute(
+            "INSERT INTO watch_events "
+            "(user_id, provider_id, source_connection_id, title_id, episode_id, "
+            " item_kind, raw_title, season, episode, watched_at, watched_date, "
+            " duration_seconds, progress_percent, completed, raw, dedup_hash) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+            "ON CONFLICT (dedup_hash) DO NOTHING RETURNING id",
+            (user_id, provider_id, source_connection_id, title_id, episode_id,
+             ev.item_kind, ev.raw_title, ev.season, ev.episode, ev.watched_at,
+             watched_date, ev.duration_seconds, ev.progress_percent, ev.completed,
+             _jsonb(ev.raw), dh),
+        )
+        if cur.fetchone():
+            inserted += 1
+            affected_dates.add(watched_date)
+        else:
+            duplicates += 1
 
-        # Roll up the affected days with a runtime-aware total (real duration,
-        # else episode/title runtime) so sources without a per-event duration
-        # (Netflix CSV, Plex history) still contribute watch hours.
-        if affected_dates:
-            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)",
-                        (user_id, provider_id, list(affected_dates)))
+    # Roll up the affected days with a runtime-aware total (real duration,
+    # else episode/title runtime) so sources without a per-event duration
+    # (Netflix CSV, Plex history) still contribute watch hours.
+    if affected_dates:
+        cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)",
+                    (user_id, provider_id, list(affected_dates)))
 
-        # queue enrichment for newly created titles
-        for tid in titles_created:
-            cur.execute(
-                "INSERT INTO background_jobs (kind, payload) VALUES ('enrich_title', %s)",
-                (_jsonb({"title_id": str(tid)}),),
-            )
+    # queue enrichment for newly created titles
+    for tid in titles_created:
+        cur.execute(
+            "INSERT INTO background_jobs (kind, payload) VALUES ('enrich_title', %s)",
+            (_jsonb({"title_id": str(tid)}),),
+        )
 
     return {
         "inserted": inserted,
