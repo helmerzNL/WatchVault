@@ -195,6 +195,12 @@ def enrich_title(title_id: str) -> dict:
         episodes = _populate_episodes(
             matched_plugin, title_id, matched_tmdb_id, details.get("seasons") or [])
 
+    # Runtime is now known (title + episodes), so re-roll the daily aggregate for
+    # this title's watched days. Sources without a per-event duration (Netflix CSV,
+    # Plex history) thus gain their watch hours retroactively.
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT wv_recompute_agg_for_title(%s)", (title_id,))
+
     return {"status": "enriched", "source": source, "tmdb_id": details.get("tmdb_id"),
             "people_queued": len(person_ids), "episodes": episodes}
 

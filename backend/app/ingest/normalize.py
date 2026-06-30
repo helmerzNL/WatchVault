@@ -94,6 +94,7 @@ def ingest_events(user_id: str, provider_id: str, source_connection_id: str | No
     titles_created: list[str] = []
     touched_titles: set[str] = set()
     meta_applied: set[str] = set()
+    affected_dates: set = set()
 
     with connection() as conn, conn.cursor() as cur:
         for ev in events:
@@ -131,10 +132,16 @@ def ingest_events(user_id: str, provider_id: str, source_connection_id: str | No
             )
             if cur.fetchone():
                 inserted += 1
-                _bump_agg(cur, user_id, provider_id, watched_date, ev.item_kind,
-                          ev.duration_seconds or 0)
+                affected_dates.add(watched_date)
             else:
                 duplicates += 1
+
+        # Roll up the affected days with a runtime-aware total (real duration,
+        # else episode/title runtime) so sources without a per-event duration
+        # (Netflix CSV, Plex history) still contribute watch hours.
+        if affected_dates:
+            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)",
+                        (user_id, provider_id, list(affected_dates)))
 
         # queue enrichment for newly created titles
         for tid in titles_created:
@@ -221,19 +228,3 @@ def prune_connection_libraries(source_connection_id: str | None, raw_key: str,
         if removed:
             cur.execute("SELECT wv_rebuild_daily_agg()")
     return removed
-
-
-def _bump_agg(cur, user_id, provider_id, watched_date, item_kind, seconds: int) -> None:
-    movies = 1 if item_kind == "movie" else 0
-    episodes = 1 if item_kind == "episode" else 0
-    cur.execute(
-        "INSERT INTO watch_daily_agg "
-        "(user_id, provider_id, watched_date, movies_count, episodes_count, events_count, total_seconds) "
-        "VALUES (%s,%s,%s,%s,%s,1,%s) "
-        "ON CONFLICT (user_id, provider_id, watched_date) DO UPDATE SET "
-        "  movies_count   = watch_daily_agg.movies_count + EXCLUDED.movies_count, "
-        "  episodes_count = watch_daily_agg.episodes_count + EXCLUDED.episodes_count, "
-        "  events_count   = watch_daily_agg.events_count + 1, "
-        "  total_seconds  = watch_daily_agg.total_seconds + EXCLUDED.total_seconds",
-        (user_id, provider_id, watched_date, movies, episodes, seconds),
-    )
