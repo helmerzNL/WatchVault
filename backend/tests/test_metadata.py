@@ -310,6 +310,32 @@ def test_desired_provider_override_and_sources():
         assert _desired_provider(src, "ovr", "net", "man") is None
 
 
+def test_attribution_reason_classification():
+    from app.networks import _attribution_reason
+    # An override always wins, regardless of networks.
+    assert _attribution_reason({"kind": "series"}, "ovr", [], "generic") == "override"
+    # A network that maps to a real provider.
+    assert _attribution_reason(
+        {"kind": "series", "tmdb_id": 1, "metadata": {"networks": [{"name": "Netflix"}]},
+         "enriched_at": "2024-01-01"}, None, [{"name": "Netflix"}], "netflix") == "network_matched"
+    # A movie has no TMDB networks -> always "Other".
+    assert _attribution_reason(
+        {"kind": "movie", "tmdb_id": 9, "metadata": {}, "enriched_at": "2024-01-01"},
+        None, [], "generic") == "movie_no_networks"
+    # An enriched series whose networks are present but none are catalogued.
+    assert _attribution_reason(
+        {"kind": "series", "tmdb_id": 1, "metadata": {"networks": [{"name": "Obscure"}]},
+         "enriched_at": "2024-01-01"}, None, [{"name": "Obscure"}], "generic") == "network_unmapped"
+    # An enriched series that TMDB lists with no networks at all.
+    assert _attribution_reason(
+        {"kind": "series", "tmdb_id": 1, "metadata": {"networks": []},
+         "enriched_at": "2024-01-01"}, None, [], "generic") == "no_networks"
+    # A series not enriched yet (no networks fetched).
+    assert _attribution_reason(
+        {"kind": "series", "tmdb_id": 1, "metadata": {}, "enriched_at": None},
+        None, [], "generic") == "not_enriched"
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))

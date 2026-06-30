@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT } from "../lib/i18n";
+import { useT, providerLabel } from "../lib/i18n";
 import { api } from "../lib/api";
 import { Loading, Empty, Poster, ErrorState } from "../components/ui";
 import { IconSearch } from "../components/icons";
@@ -49,6 +49,23 @@ export function Search() {
 
   const params = useMemo(() => ({ profile: scope, q, genre, actor, platform, year, kind, lang }),
     [scope, q, genre, actor, platform, year, kind, lang]);
+
+  // Plex + Jellyfin are presented as one "Digital Library" option; selecting it
+  // filters on either (the backend expands the `digital_library` key).
+  const platformOptions = useMemo(() => {
+    const out: { key: string; label: string }[] = [];
+    let digital = false;
+    for (const p of providers) {
+      if (p.key === "plex" || p.key === "jellyfin") {
+        if (digital) continue;
+        digital = true;
+        out.push({ key: "digital_library", label: providerLabel(t, "digital_library", p.name) });
+      } else {
+        out.push({ key: p.key, label: providerLabel(t, p.key, p.name) });
+      }
+    }
+    return out;
+  }, [providers, t]);
 
   // debounced page-0 (re)load whenever filters change
   useEffect(() => {
@@ -130,7 +147,7 @@ export function Search() {
             <label>{t("search.platform")}</label>
             <select value={platform} onChange={(e) => setPlatform(e.target.value)}>
               <option value="">{t("search.any")}</option>
-              {providers.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+              {platformOptions.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
             </select>
           </div>
           <div>
