@@ -441,6 +441,132 @@ function ExpertTools() {
   );
 }
 
+function ScrobbleSettings() {
+  const { prefs, can, toast } = useApp();
+  const { t } = useT();
+  const profiles = useFetch<any[]>(() => api.get("/profiles"), []);
+  const accountMap = useFetch<{ mappings: any[]; unmapped: any[] }>(() => api.get("/scrobble/account-map"), []);
+  const settings = useFetch<{ commit_threshold: number }>(() => api.get("/scrobble/settings"), []);
+  const [token, setToken] = useState<string | null>(null);
+  const [threshold, setThreshold] = useState<string>("");
+  const [savingT, setSavingT] = useState(false);
+
+  if (!can("ingest.write") || !prefs.expert) return null;
+
+  const origin = window.location.origin;
+  const plexUrl = token ? `${origin}/api/scrobble/plex?token=${token}` : "";
+  const genericUrl = `${origin}/api/scrobble/generic`;
+
+  async function generate() {
+    try {
+      const res = await api.post("/tokens", { name: "Live scrobbling" });
+      setToken(res.token);
+    } catch { toast(t("settings.failed"), "err"); }
+  }
+  function copy(text: string) {
+    navigator.clipboard?.writeText(text);
+    toast(t("scrobble.copied"), "ok");
+  }
+  async function map(source: string, account_label: string, user_id: string) {
+    try {
+      await api.put("/scrobble/account-map", { source, account_label, user_id });
+      accountMap.reload();
+    } catch { toast(t("settings.failed"), "err"); }
+  }
+  async function saveThreshold() {
+    setSavingT(true);
+    try {
+      const res = await api.put("/scrobble/settings", { commit_threshold: Number(threshold) });
+      setThreshold(String(res.commit_threshold));
+      toast(t("settings.saved"), "ok");
+    } catch { toast(t("settings.failed"), "err"); }
+    finally { setSavingT(false); }
+  }
+
+  const currentThreshold = threshold !== "" ? threshold : (settings.data ? String(settings.data.commit_threshold) : "");
+  const rows: { source: string; account_label: string; user_id: string | null }[] = [
+    ...(accountMap.data?.mappings || []).map((m) => ({ source: m.source, account_label: m.account_label, user_id: m.user_id })),
+    ...(accountMap.data?.unmapped || []).map((u) => ({ source: u.source, account_label: u.account_label, user_id: null })),
+  ];
+
+  return (
+    <Section title={t("scrobble.title")}>
+      <div className="card col" style={{ gap: 18 }}>
+        <p className="caption">{t("scrobble.help")}</p>
+
+        {token ? (
+          <div className="card col" style={{ gap: 12, borderColor: "var(--accent)", background: "var(--bg)" }}>
+            <span className="caption">{t("scrobble.tokenWarn")}</span>
+            <div className="col" style={{ gap: 4 }}>
+              <label>{t("scrobble.plexUrl")}</label>
+              <div className="row" style={{ gap: 8 }}>
+                <div className="code-box" style={{ flex: 1, wordBreak: "break-all" }}>{plexUrl}</div>
+                <button className="btn-ghost btn-sm" style={{ flexShrink: 0 }} onClick={() => copy(plexUrl)}>{t("scrobble.copy")}</button>
+              </div>
+            </div>
+            <div className="col" style={{ gap: 4 }}>
+              <label>{t("scrobble.genericUrl")}</label>
+              <div className="row" style={{ gap: 8 }}>
+                <div className="code-box" style={{ flex: 1, wordBreak: "break-all" }}>{genericUrl}</div>
+                <button className="btn-ghost btn-sm" style={{ flexShrink: 0 }} onClick={() => copy(genericUrl)}>{t("scrobble.copy")}</button>
+              </div>
+            </div>
+            <div className="col" style={{ gap: 4 }}>
+              <label>{t("scrobble.bearer")}</label>
+              <div className="row" style={{ gap: 8 }}>
+                <div className="code-box" style={{ flex: 1, wordBreak: "break-all" }}>Bearer {token}</div>
+                <button className="btn-ghost btn-sm" style={{ flexShrink: 0 }} onClick={() => copy(`Bearer ${token}`)}>{t("scrobble.copy")}</button>
+              </div>
+            </div>
+            <p className="caption">{t("scrobble.setupHint")}</p>
+            <button className="btn-ghost btn-sm" style={{ alignSelf: "flex-start" }} onClick={() => setToken(null)}>{t("scrobble.done")}</button>
+          </div>
+        ) : (
+          <div className="col" style={{ gap: 8 }}>
+            <button className="btn-ghost" style={{ alignSelf: "flex-start" }} onClick={generate}>{t("scrobble.generate")}</button>
+            <p className="caption">{t("scrobble.setupHint")}</p>
+          </div>
+        )}
+
+        <div className="col" style={{ gap: 8 }}>
+          <label>{t("scrobble.mapping")}</label>
+          <p className="caption">{t("scrobble.mappingHelp")}</p>
+          {rows.length === 0 ? <p className="muted">{t("scrobble.noAccounts")}</p> : rows.map((r) => (
+            <div key={`${r.source}:${r.account_label}`} className="list-row">
+              <div className="col" style={{ flex: 1, gap: 2 }}>
+                <strong>{r.account_label}</strong>
+                <span className="caption">{providerLabel(t, r.source, r.source)}</span>
+              </div>
+              <select value={r.user_id || ""} onChange={(e) => map(r.source, r.account_label, e.target.value)}
+                style={{ width: "auto", minWidth: 160 }}>
+                <option value="">{t("scrobble.unmapped")}</option>
+                {(profiles.data || []).map((p) => (
+                  <option key={p.id} value={p.id}>{p.display_name}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+
+        {can("settings.manage") && (
+          <div className="col" style={{ gap: 6 }}>
+            <label>{t("scrobble.threshold")}</label>
+            <div className="row" style={{ gap: 10, alignItems: "center" }}>
+              <input type="number" min={1} max={100} value={currentThreshold}
+                onChange={(e) => setThreshold(e.target.value)} style={{ width: 100 }} />
+              <span className="caption">%</span>
+              <button className="btn-ghost btn-sm" disabled={savingT || currentThreshold === ""} onClick={saveThreshold}>
+                {savingT ? "…" : t("common.save")}
+              </button>
+            </div>
+            <p className="caption">{t("scrobble.thresholdHelp")}</p>
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 export function Settings() {
   const { t } = useT();
   return (
@@ -448,6 +574,7 @@ export function Settings() {
       <h1 className="large-title" style={{ marginBottom: 8 }}>{t("settings.title")}</h1>
       <Appearance />
       <ExpertTools />
+      <ScrobbleSettings />
       <Household />
       <Plugins />
       <Tokens />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT, providerLabel } from "../lib/i18n";
@@ -54,6 +54,8 @@ export function Dashboard() {
         <div className="spacer" style={{ flex: 1 }} />
         <AddCinemaFilmButton variant="ghost" />
       </div>
+
+      <NowPlaying scope={scope} />
 
       <div className="stat-grid" style={{ marginBottom: 24 }}>
         <Stat value={fmtHours(s.totals.hours)} label={t("dashboard.totalWatchTime")} />
@@ -135,6 +137,60 @@ function MonthlyTitles({ scope }: { scope: string }) {
             ))}
           </div>
         ) : <p className="muted">{t("overviews.nothingIn", { month: monthLabel(month) })}</p>}
+    </Section>
+  );
+}
+
+// Expert-mode live layer: polls /scrobble/now-playing and shows what is playing
+// across the household right now. Renders nothing when Expert mode is off or
+// nothing is playing, so it stays invisible for non-expert users.
+function NowPlaying({ scope }: { scope: string }) {
+  const { prefs } = useApp();
+  const { t } = useT();
+  const { data, refresh } = useFetch<any[]>(() => api.get("/scrobble/now-playing"), []);
+
+  useEffect(() => {
+    if (!prefs.expert) return;
+    const id = setInterval(() => { refresh(); }, 5000);
+    return () => clearInterval(id);
+  }, [prefs.expert, refresh]);
+
+  if (!prefs.expert) return null;
+  let items = data || [];
+  if (scope !== "all") items = items.filter((s: any) => s.profile_id === scope);
+  if (!items.length) return null;
+
+  return (
+    <Section title={t("scrobble.nowPlaying")}>
+      <div className="card col" style={{ gap: 16 }}>
+        {items.map((s: any) => {
+          const sub = s.kind === "episode" && s.season != null
+            ? `S${s.season}·E${s.episode}${s.episode_name ? " · " + s.episode_name : ""}`
+            : (s.year ? String(s.year) : "");
+          const meta = [s.profile, providerLabel(t, s.provider, s.provider),
+            s.state === "paused" ? t("scrobble.paused") : t("scrobble.playing")]
+            .filter(Boolean).join(" · ");
+          const pct = Math.max(0, Math.min(100, Number(s.progress) || 0));
+          return (
+            <div key={s.id} className="row" style={{ gap: 14, alignItems: "center" }}>
+              <div className="poster" style={{ width: 46, flexShrink: 0, aspectRatio: "2 / 3", borderRadius: 8, overflow: "hidden" }}>
+                {s.poster ? <img src={s.poster} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <div className="ph" style={{ width: "100%", height: "100%" }} />}
+              </div>
+              <div className="col" style={{ flex: 1, gap: 4, minWidth: 0 }}>
+                <strong style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</strong>
+                <span className="caption" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {sub ? `${sub} · ${meta}` : meta}
+                </span>
+                <div className="bar-track">
+                  <div className="bar-fill" style={{ width: `${pct}%`, background: s.provider_color || "var(--accent)" }} />
+                </div>
+              </div>
+              <span className="caption" style={{ flexShrink: 0, width: 42, textAlign: "right" }}>{Math.round(pct)}%</span>
+            </div>
+          );
+        })}
+      </div>
     </Section>
   );
 }
