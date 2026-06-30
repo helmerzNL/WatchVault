@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { LanguagePicker } from "./LanguagePicker";
+import { Dropdown } from "./Menu";
 import { initials } from "../lib/format";
 import {
   IconChart, IconChevron, IconHome, IconImport, IconLogo, IconSearch, IconSettings, IconUsers,
@@ -11,49 +11,48 @@ import {
 function ProfileSwitcher() {
   const { profiles, scope, setScope, user } = useApp();
   const { t } = useT();
-  const [open, setOpen] = useState(false);
   const current = scope === "all" ? null : profiles.find((p) => p.id === scope);
   const label = current ? current.display_name : t("common.household");
 
   return (
-    <div style={{ position: "relative" }}>
-      <button className="btn-ghost btn-sm" onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
-        <span className="avatar" style={{ width: 24, height: 24, fontSize: 11 }}>
-          {current?.avatar ? <img src={current.avatar} alt="" /> : current ? initials(current.display_name) : "★"}
-        </span>
-        <span style={{ maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-        <IconChevron width={16} height={16} style={{ transform: "rotate(90deg)" }} />
-      </button>
-      {open && (
+    <Dropdown
+      align="right"
+      minWidth={220}
+      buttonClassName="btn-ghost btn-sm"
+      button={() => (
         <>
-          <div style={{ position: "fixed", inset: 0, zIndex: 90 }} onClick={() => setOpen(false)} />
-          <div className="glass" style={{
-            position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 100,
-            minWidth: 220, padding: 8, borderRadius: 16,
-          }} role="listbox">
-            <button className="menu-row" data-active={scope === "all"} onClick={() => { setScope("all"); setOpen(false); }}>
-              <span className="avatar" style={{ width: 30, height: 30, fontSize: 13 }}>★</span>
-              <span className="col" style={{ gap: 0, alignItems: "flex-start" }}>
-                <strong>{t("common.household")}</strong>
-                <span className="caption">{t("common.everyoneCombined")}</span>
-              </span>
-            </button>
-            {profiles.map((p) => (
-              <button key={p.id} className="menu-row" data-active={scope === p.id}
-                onClick={() => { setScope(p.id); setOpen(false); }}>
-                <span className="avatar" style={{ width: 30, height: 30, fontSize: 13 }}>
-                  {p.avatar ? <img src={p.avatar} alt="" /> : initials(p.display_name)}
-                </span>
-                <span className="col" style={{ gap: 0, alignItems: "flex-start" }}>
-                  <strong>{p.display_name}{p.id === user?.id ? ` (${t("common.you")})` : ""}</strong>
-                  <span className="caption">{p.events} {t("common.events")}</span>
-                </span>
-              </button>
-            ))}
-          </div>
+          <span className="avatar" style={{ width: 24, height: 24, fontSize: 11 }}>
+            {current?.avatar ? <img src={current.avatar} alt="" /> : current ? initials(current.display_name) : "★"}
+          </span>
+          <span style={{ maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+          <IconChevron width={16} height={16} style={{ transform: "rotate(90deg)" }} />
         </>
       )}
-    </div>
+    >
+      {(close) => (
+        <>
+          <button className="menu-row" data-active={scope === "all"} onClick={() => { setScope("all"); close(); }}>
+            <span className="avatar" style={{ width: 30, height: 30, fontSize: 13 }}>★</span>
+            <span className="col" style={{ gap: 0, alignItems: "flex-start" }}>
+              <strong>{t("common.household")}</strong>
+              <span className="caption">{t("common.everyoneCombined")}</span>
+            </span>
+          </button>
+          {profiles.map((p) => (
+            <button key={p.id} className="menu-row" data-active={scope === p.id}
+              onClick={() => { setScope(p.id); close(); }}>
+              <span className="avatar" style={{ width: 30, height: 30, fontSize: 13 }}>
+                {p.avatar ? <img src={p.avatar} alt="" /> : initials(p.display_name)}
+              </span>
+              <span className="col" style={{ gap: 0, alignItems: "flex-start" }}>
+                <strong>{p.display_name}{p.id === user?.id ? ` (${t("common.you")})` : ""}</strong>
+                <span className="caption">{p.events} {t("common.events")}</span>
+              </span>
+            </button>
+          ))}
+        </>
+      )}
+    </Dropdown>
   );
 }
 

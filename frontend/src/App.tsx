@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { useApp } from "./lib/app";
 import { Layout } from "./components/Layout";
+import { InstallPrompt } from "./components/InstallPrompt";
 import { Loading } from "./components/ui";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
@@ -15,27 +16,28 @@ import { Person } from "./pages/Person";
 export function App() {
   const { ready, user } = useApp();
 
-  if (!ready) {
-    return <div className="center-screen"><Loading /></div>;
-  }
-
-  if (!user) {
-    return <Login />;
-  }
-
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="/overviews" element={<Overviews />} />
-        <Route path="/search" element={<Search />} />
-        <Route path="/title/:id" element={<TitleDetail />} />
-        <Route path="/person/:id" element={<Person />} />
-        <Route path="/imports" element={<Imports />} />
-        <Route path="/profiles" element={<Profiles />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="*" element={<Dashboard />} />
-      </Route>
-    </Routes>
+    <>
+      <InstallPrompt />
+      {!ready ? (
+        <div className="center-screen"><Loading /></div>
+      ) : !user ? (
+        <Login />
+      ) : (
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="/overviews" element={<Overviews />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/title/:id" element={<TitleDetail />} />
+            <Route path="/person/:id" element={<Person />} />
+            <Route path="/imports" element={<Imports />} />
+            <Route path="/profiles" element={<Profiles />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<Dashboard />} />
+          </Route>
+        </Routes>
+      )}
+    </>
   );
 }

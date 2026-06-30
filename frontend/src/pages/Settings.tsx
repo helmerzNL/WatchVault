@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../lib/app";
-import { useT, LANGUAGES } from "../lib/i18n";
+import { useT } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { addPasskey } from "../lib/auth";
@@ -21,22 +21,6 @@ function Appearance() {
                 onClick={() => savePrefs({ theme: th })}>{t(`settings.${th}`)}</button>
             ))}
           </div>
-        </div>
-        <div>
-          <label>{t("settings.language")}</label>
-          <div className="seg" style={{ flexWrap: "wrap" }}>
-            {LANGUAGES.map((l) => {
-              const Flag = l.Flag;
-              return (
-                <button key={l.code} className={prefs.language === l.code ? "active" : ""}
-                  onClick={() => savePrefs({ language: l.code })}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <Flag style={{ borderRadius: 2 }} /> {l.native}
-                </button>
-              );
-            })}
-          </div>
-          <span className="caption" style={{ display: "block", marginTop: 6 }}>{t("settings.languageHelp")}</span>
         </div>
         <div>
           <label>{t("settings.accentColor")}</label>

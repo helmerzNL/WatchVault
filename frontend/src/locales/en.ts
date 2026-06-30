@@ -33,6 +33,13 @@ const en = {
   "common.language": "Language",
   "common.tagline": "Your household's watch history, in one place.",
 
+  // ── Install (PWA) ─────────────────────────────────────────────────────────
+  "install.title": "Install WatchVault",
+  "install.body": "Add it to your home screen for a faster, full-screen app.",
+  "install.ios": "Tap the Share button, then “Add to Home Screen”.",
+  "install.action": "Install",
+  "install.dismiss": "Dismiss",
+
   // ── Dashboard ───────────────────────────────────────────────────────────
   "dashboard.welcome": "Welcome, {name} 👋",
   "dashboard.noHistory": "No watch history yet. Import a Netflix CSV or connect Plex/Jellyfin to start building your household's vault.",

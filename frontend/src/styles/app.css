@@ -357,6 +357,49 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 .menu-row:hover { background: var(--accent-subtle); }
 .menu-row[data-active="true"] { background: var(--accent-subtle); color: var(--accent); }
 
+/* Portal dropdown (Language / Profile pickers) — rendered on <body> so it
+   escapes the top bar's backdrop-filter containing block (fixes the iOS
+   sticky-header nudge when a header menu opens). */
+.dropdown-portal { position: fixed; inset: 0; z-index: 1000; }
+.dropdown-scrim { position: fixed; inset: 0; }
+.dropdown-menu {
+  position: fixed;
+  padding: 8px;
+  border-radius: 16px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  animation: dropdownIn 0.14s ease;
+}
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* PWA install banner */
+.install-banner {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(440px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border-radius: 20px;
+  animation: dropdownIn 0.3s ease;
+}
+.install-banner .wv-logo { width: 34px; height: 34px; }
+.install-banner .install-x {
+  min-height: 32px; width: 32px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  .install-banner { bottom: calc(96px + env(safe-area-inset-bottom)); }
+}
+
 .poster-tile { color: var(--text); display: block; }
 .poster-tile:hover { color: var(--text); }
 .poster-tile:hover .poster { box-shadow: var(--shadow); transform: translateY(-2px); }

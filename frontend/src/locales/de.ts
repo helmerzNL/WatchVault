@@ -33,6 +33,13 @@ const de = {
   "common.language": "Sprache",
   "common.tagline": "Der Wiedergabeverlauf deines Haushalts an einem Ort.",
 
+  // ── Install (PWA) ─────────────────────────────────────────────────────────
+  "install.title": "WatchVault installieren",
+  "install.body": "Füge es zum Startbildschirm hinzu für eine schnellere Vollbild-App.",
+  "install.ios": "Tippe auf „Teilen“ und dann „Zum Home-Bildschirm“.",
+  "install.action": "Installieren",
+  "install.dismiss": "Schließen",
+
   // ── Dashboard ───────────────────────────────────────────────────────────
   "dashboard.welcome": "Willkommen, {name} 👋",
   "dashboard.noHistory": "Noch kein Wiedergabeverlauf. Importiere eine Netflix-CSV oder verbinde Plex/Jellyfin, um den Tresor deines Haushalts aufzubauen.",

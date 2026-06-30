@@ -33,6 +33,13 @@ const fr = {
   "common.language": "Langue",
   "common.tagline": "L'historique de visionnage de votre foyer, au même endroit.",
 
+  // ── Install (PWA) ─────────────────────────────────────────────────────────
+  "install.title": "Installer WatchVault",
+  "install.body": "Ajoutez-le à votre écran d'accueil pour une appli plus rapide en plein écran.",
+  "install.ios": "Touchez le bouton Partager, puis « Sur l'écran d'accueil ».",
+  "install.action": "Installer",
+  "install.dismiss": "Ignorer",
+
   // ── Dashboard ───────────────────────────────────────────────────────────
   "dashboard.welcome": "Bienvenue, {name} 👋",
   "dashboard.noHistory": "Aucun historique de visionnage pour le moment. Importez un CSV Netflix ou connectez Plex/Jellyfin pour commencer à remplir le coffre de votre foyer.",

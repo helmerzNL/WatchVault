@@ -33,6 +33,13 @@ const nl = {
   "common.language": "Taal",
   "common.tagline": "De kijkgeschiedenis van je huishouden, op één plek.",
 
+  // ── Install (PWA) ─────────────────────────────────────────────────────────
+  "install.title": "WatchVault installeren",
+  "install.body": "Zet hem op je beginscherm voor een snellere app op volledig scherm.",
+  "install.ios": "Tik op de Deel-knop en kies “Zet op beginscherm”.",
+  "install.action": "Installeren",
+  "install.dismiss": "Sluiten",
+
   // ── Dashboard ───────────────────────────────────────────────────────────
   "dashboard.welcome": "Welkom, {name} 👋",
   "dashboard.noHistory": "Nog geen kijkgeschiedenis. Importeer een Netflix-CSV of koppel Plex/Jellyfin om de kluis van je huishouden op te bouwen.",

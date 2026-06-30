@@ -33,6 +33,13 @@ const it = {
   "common.language": "Lingua",
   "common.tagline": "La cronologia di visione della tua famiglia, in un unico posto.",
 
+  // ── Install (PWA) ─────────────────────────────────────────────────────────
+  "install.title": "Installa WatchVault",
+  "install.body": "Aggiungilo alla schermata Home per un'app più veloce a schermo intero.",
+  "install.ios": "Tocca il pulsante Condividi, poi “Aggiungi a Home”.",
+  "install.action": "Installa",
+  "install.dismiss": "Ignora",
+
   // ── Dashboard ───────────────────────────────────────────────────────────
   "dashboard.welcome": "Benvenuto, {name} 👋",
   "dashboard.noHistory": "Non c'è ancora cronologia di visione. Importa un CSV di Netflix o collega Plex/Jellyfin per iniziare a costruire il vault della tua famiglia.",
