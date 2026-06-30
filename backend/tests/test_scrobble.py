@@ -10,9 +10,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from app.ingest.scrobble import (  # noqa: E402
-    parse_plex_payload, parse_generic_payload, should_commit, state_for_event,
-    _tmdb_from_guids, _progress, _resolve_provider_id, _resolve_profile_id,
-    ScrobbleEvent,
+    parse_plex_payload, parse_generic_payload, should_commit, should_reset_commit,
+    state_for_event, _tmdb_from_guids, _progress, _resolve_provider_id,
+    _resolve_profile_id, ScrobbleEvent,
 )
 
 
@@ -139,6 +139,22 @@ def test_should_commit_threshold_and_scrobble():
     assert should_commit(ScrobbleEvent(event="stop", progress_percent=89, **base), 90) is False
     assert should_commit(ScrobbleEvent(event="play", progress_percent=None, **base), 90) is False
     assert should_commit(ScrobbleEvent(event="pause", progress_percent=90, **base), 90) is True
+
+
+def test_should_reset_commit_only_below_threshold():
+    base = dict(source="homeassistant", raw_title="X", dedup_key="k")
+    # A genuine (re)start near the beginning resets the prior commit.
+    assert should_reset_commit(ScrobbleEvent(event="play", progress_percent=0, **base), 90) is True
+    assert should_reset_commit(ScrobbleEvent(event="resume", progress_percent=12, **base), 90) is True
+    assert should_reset_commit(ScrobbleEvent(event="play", progress_percent=None, **base), 90) is True
+    # A poll on an already-watched stream must NOT clear the commit (else it lingers
+    # in Now Playing and never stays registered as watched).
+    assert should_reset_commit(ScrobbleEvent(event="play", progress_percent=92, **base), 90) is False
+    assert should_reset_commit(ScrobbleEvent(event="resume", progress_percent=90, **base), 90) is False
+    # Non play/resume events never reset.
+    assert should_reset_commit(ScrobbleEvent(event="pause", progress_percent=10, **base), 90) is False
+    assert should_reset_commit(ScrobbleEvent(event="stop", progress_percent=10, **base), 90) is False
+    assert should_reset_commit(ScrobbleEvent(event="scrobble", progress_percent=100, **base), 90) is False
 
 
 # ── Provider / profile resolution (fake cursor) ─────────────────────────────

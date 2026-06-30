@@ -187,6 +187,23 @@ def should_commit(evt: ScrobbleEvent, threshold: float) -> bool:
     return False
 
 
+def should_reset_commit(evt: ScrobbleEvent, threshold: float) -> bool:
+    """Whether a play/resume should be treated as a *fresh* viewing and clear any
+    prior commit on the session.
+
+    Players like Home Assistant / AppleTV poll and re-send `play` every few seconds
+    during continuous playback. We must NOT keep clearing the commit on those polls
+    once a session has already crossed the watched threshold — otherwise a stream
+    that reaches 90% briefly commits, then the next poll un-commits it, so it lingers
+    in Now Playing and is never reliably registered (and can re-commit as a duplicate).
+
+    A genuine replay starts near 0%, well below the threshold; an ongoing high-progress
+    stream is not a restart. So only reset when progress is still below the threshold."""
+    if evt.event not in ("play", "resume"):
+        return False
+    return (evt.progress_percent or 0) < threshold
+
+
 # ── Stateful handling ───────────────────────────────────────────────────────
 
 def _resolve_provider_id(cur, evt: ScrobbleEvent) -> Optional[str]:
@@ -255,8 +272,9 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
     with connection() as conn, conn.cursor() as cur:
         provider_id = _resolve_provider_id(cur, evt)
         user_id = _resolve_profile_id(cur, household_id, evt, token_user_id)
-        # A fresh `play`/`resume` after a previous commit starts a new session.
-        reset_commit = evt.event in ("play", "resume")
+        # A fresh `play`/`resume` *below the threshold* starts a new session; a
+        # play poll on an already-watched stream must not clear the prior commit.
+        reset_commit = should_reset_commit(evt, threshold)
         cur.execute(
             "INSERT INTO scrobble_sessions "
             "(household_id, user_id, provider_id, source, account_label, platform_key, "
