@@ -155,6 +155,63 @@ def test_plex_metadata_enriches_history(monkeypatch):
     assert events[0].metadata["genres"] == ["Science Fiction"]
 
 
+def test_search_attempts_year_fallback():
+    from app.plugins.enrich import build_search_attempts
+    attempts = build_search_attempts("Dune", 2024, "movie")
+    # exact (with year) is first, then a year-less retry of the same query
+    assert attempts[0] == ("Dune", 2024, "movie")
+    assert ("Dune", None, "movie") in attempts
+
+
+def test_search_attempts_strips_netflix_series_noise():
+    from app.plugins.enrich import build_search_attempts
+    attempts = build_search_attempts("Stranger Things: Season 4: Chapter One", None, "series")
+    queries = [q for (q, _y, _k) in attempts]
+    assert "Stranger Things" in queries
+
+
+def test_search_attempts_strips_year_suffix_and_brackets():
+    from app.plugins.enrich import build_search_attempts
+    queries = [q for (q, _y, _k) in build_search_attempts("Fargo (2014)", None, "series")]
+    assert "Fargo" in queries
+    queries2 = [q for (q, _y, _k) in build_search_attempts("Sherlock [UK]", None, "series")]
+    assert "Sherlock" in queries2
+
+
+def test_search_attempts_other_kind_is_last_resort():
+    from app.plugins.enrich import build_search_attempts
+    attempts = build_search_attempts("Dune", 2024, "movie")
+    same_kind = [i for i, (_q, _y, k) in enumerate(attempts) if k == "movie"]
+    other_kind = [i for i, (_q, _y, k) in enumerate(attempts) if k == "series"]
+    assert other_kind, "expected an other-kind fallback"
+    # every same-kind attempt comes before the first other-kind attempt
+    assert max(same_kind) < min(other_kind)
+
+
+def test_search_attempts_empty_title():
+    from app.plugins.enrich import build_search_attempts
+    assert build_search_attempts("   ", 2024, "movie") == []
+
+
+def test_find_match_uses_year_fallback():
+    from app.plugins.enrich import _find_match
+
+    class FakePlugin:
+        def __init__(self):
+            self.calls = []
+
+        def search(self, query, year, kind):
+            self.calls.append((query, year, kind))
+            # only the year-less query returns a hit (mismatched watch year)
+            return [{"id": 99}] if year is None else []
+
+    plugin = FakePlugin()
+    tmdb_id, kind = _find_match(plugin, {"title": "Some Show", "year": 1999, "kind": "series"})
+    assert tmdb_id == 99
+    assert kind == "series"
+    assert plugin.calls[0] == ("Some Show", 1999, "series")
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))
