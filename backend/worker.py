@@ -15,6 +15,8 @@ from app.plugins import enrich_person, enrich_title
 
 POLL_INTERVAL = 3          # seconds between queue polls
 SCHEDULE_INTERVAL = 900    # enqueue connection syncs every 15 min
+EXPIRE_INTERVAL = 60       # sweep stale scrobble sessions every minute
+EXPIRE_AFTER_MINUTES = 10  # no update in this long -> stop the live session
 
 
 def _claim_job():
@@ -149,6 +151,7 @@ def main():
     except Exception:  # noqa: BLE001
         traceback.print_exc()
     last_schedule = 0.0
+    last_expire = 0.0
     while True:
         try:
             now = time.time()
@@ -158,6 +161,14 @@ def main():
                 except Exception:  # noqa: BLE001
                     traceback.print_exc()
                 last_schedule = now
+
+            if now - last_expire > EXPIRE_INTERVAL:
+                try:
+                    from app.ingest import expire_stale_sessions
+                    expire_stale_sessions(EXPIRE_AFTER_MINUTES)
+                except Exception:  # noqa: BLE001
+                    traceback.print_exc()
+                last_expire = now
 
             job = _claim_job()
             if not job:
