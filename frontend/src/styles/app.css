@@ -495,6 +495,15 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 .episode-status { font-size: 0.78rem; font-weight: 600; color: var(--text-tertiary); margin-top: 2px; }
 .episode-status.on { color: var(--accent); }
 
+/* Manual "mark watched" controls (date chips + add button) */
+.manual-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.manual-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 0; padding: 2px; border: none; border-radius: var(--radius-pill);
+  background: transparent; color: var(--text-tertiary); cursor: pointer;
+}
+.manual-x:hover { background: rgba(255,59,48,0.15); color: #ff3b30; }
+
 @media (max-width: 560px) {
   .episode-row { gap: var(--space-3); padding: var(--space-3) var(--space-4); }
   .episode-still { width: 104px; }

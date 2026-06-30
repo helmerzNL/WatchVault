@@ -4,9 +4,13 @@ import { useT, useGenre } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, BackLink } from "../components/ui";
-import { IconSparkles, IconCheck, IconRefresh } from "../components/icons";
+import { IconSparkles, IconCheck, IconRefresh, IconPlus, IconClose } from "../components/icons";
 import { fmtDate } from "../lib/format";
 import { useState } from "react";
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+type ManualWatch = { id: string; date: string };
 
 function PersonCard({ c }: { c: any }) {
   const inner = (
@@ -23,7 +27,60 @@ function PersonCard({ c }: { c: any }) {
     : <div className="cast-card">{inner}</div>;
 }
 
-function EpisodeRow({ ep }: { ep: any }) {
+// Inline "add a watch date" control: a + button that reveals a date picker
+// (defaulting to today) with confirm/cancel. Used for movies and episodes.
+function AddWatch({ onAdd, label }: { onAdd: (date: string) => Promise<void>; label?: string }) {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(today);
+  const [busy, setBusy] = useState(false);
+  if (!open) {
+    return (
+      <button className="btn-ghost btn-sm" onClick={() => { setDate(today()); setOpen(true); }}>
+        <IconPlus width={14} height={14} /> {label || t("title.addWatch")}
+      </button>
+    );
+  }
+  return (
+    <div className="row" style={{ gap: 6, alignItems: "center" }}>
+      <input type="date" value={date} max={today()}
+        onChange={(e) => setDate(e.target.value)} style={{ minHeight: 34, padding: "4px 8px" }} />
+      <button className="btn-primary btn-sm" disabled={busy || !date}
+        onClick={async () => { setBusy(true); try { await onAdd(date); setOpen(false); } finally { setBusy(false); } }}>
+        {t("common.add")}
+      </button>
+      <button className="btn-ghost btn-sm" onClick={() => setOpen(false)}>{t("common.cancel")}</button>
+    </div>
+  );
+}
+
+// Removable chips for hand-entered watch dates.
+function ManualDates({ items, onRemove }: { items: ManualWatch[]; onRemove: (id: string) => void }) {
+  const { t } = useT();
+  if (!items?.length) return null;
+  return (
+    <div className="row wrap" style={{ gap: 6 }}>
+      {items.map((w) => (
+        <span key={w.id} className="chip" style={{ minHeight: 0, padding: "3px 6px 3px 10px", gap: 4 }}>
+          {fmtDate(w.date)}
+          <button className="manual-x" title={t("common.remove")} aria-label={t("common.remove")}
+            onClick={() => onRemove(w.id)}>
+            <IconClose width={12} height={12} />
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+type Ctl = {
+  canEdit: boolean;
+  addEpisode: (episodeId: string, date: string) => Promise<void>;
+  addSeason: (season: number, date: string) => Promise<void>;
+  removeWatch: (eventId: string) => void;
+};
+
+function EpisodeRow({ ep, ctl }: { ep: any; ctl: Ctl }) {
   const { t } = useT();
   const meta: string[] = [];
   if (ep.air_date) meta.push(fmtDate(ep.air_date));
@@ -47,12 +104,21 @@ function EpisodeRow({ ep }: { ep: any }) {
             ? t("title.watchedOn", { date: dates.map((d) => fmtDate(d)).join(" · ") })
             : t("title.notWatched")}
         </span>
+        {ctl.canEdit && (
+          <div className="manual-row">
+            {ep.manual_watches?.length > 0 && (
+              <ManualDates items={ep.manual_watches} onRemove={ctl.removeWatch} />
+            )}
+            <AddWatch onAdd={(date) => ctl.addEpisode(ep.id, date)}
+              label={ep.watched ? t("title.addWatch") : t("title.markWatched")} />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Seasons({ seasons }: { seasons: any[] }) {
+function Seasons({ seasons, ctl }: { seasons: any[]; ctl: Ctl }) {
   const { t } = useT();
   const [active, setActive] = useState(seasons[0]?.season ?? 0);
   const current = seasons.find((s) => s.season === active) || seasons[0];
@@ -85,9 +151,15 @@ function Seasons({ seasons }: { seasons: any[] }) {
           <div className="bar-track" style={{ marginTop: 8 }}>
             <div className="bar-fill" style={{ width: `${pct}%` }} />
           </div>
+          {ctl.canEdit && (
+            <div style={{ marginTop: 10 }}>
+              <AddWatch onAdd={(date) => ctl.addSeason(current.season, date)}
+                label={t("title.markSeasonWatched")} />
+            </div>
+          )}
         </div>
         <div className="episode-list">
-          {current.episodes.map((ep: any) => <EpisodeRow key={ep.id} ep={ep} />)}
+          {current.episodes.map((ep: any) => <EpisodeRow key={ep.id} ep={ep} ctl={ctl} />)}
         </div>
       </div>
     </>
@@ -103,6 +175,9 @@ export function TitleDetail() {
     () => api.get(`/search/title/${id}`, { profile: scope, lang }), [id, scope, lang]);
   const [enriching, setEnriching] = useState(false);
   const [syncingTrakt, setSyncingTrakt] = useState(false);
+
+  const canEdit = can("ingest.write");
+  const targetBody = () => (scope && scope !== "all" ? { user_id: scope } : {});
 
   if (loading) return <Loading />;
   if (error) return <ErrorState error={error} retry={reload} />;
@@ -122,13 +197,46 @@ export function TitleDetail() {
   async function syncTrakt() {
     setSyncingTrakt(true);
     try {
-      const res = await api.post(`/titles/${id}/trakt-sync`, scope && scope !== "all" ? { user_id: scope } : {});
+      const res = await api.post(`/titles/${id}/trakt-sync`, targetBody());
       const added = res.inserted || 0;
       toast(added > 0 ? t("title.traktSynced", { n: added }) : t("title.traktNothing"), "ok");
       reload();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
     finally { setSyncingTrakt(false); }
   }
+
+  async function addTitleWatch(date: string) {
+    try {
+      await api.post(`/titles/${id}/watch`, { ...targetBody(), date });
+      toast(t("title.watchAdded"), "ok");
+      reload();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+  }
+
+  const ctl: Ctl = {
+    canEdit,
+    addEpisode: async (episodeId, date) => {
+      try {
+        await api.post(`/episodes/${episodeId}/watch`, { ...targetBody(), date });
+        toast(t("title.watchAdded"), "ok");
+        reload();
+      } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+    },
+    addSeason: async (season, date) => {
+      try {
+        const res = await api.post(`/titles/${id}/seasons/${season}/watch`, { ...targetBody(), date });
+        toast(t("title.seasonMarked", { n: res.inserted || 0 }), "ok");
+        reload();
+      } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+    },
+    removeWatch: async (eventId) => {
+      try {
+        await api.del(`/watch-events/${eventId}`);
+        toast(t("title.watchRemoved"), "ok");
+        reload();
+      } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+    },
+  };
 
   return (
     <>
@@ -156,7 +264,7 @@ export function TitleDetail() {
 
       {ti.overview && <p className="muted" style={{ margin: "20px 0" }}>{ti.overview}</p>}
 
-      {can("ingest.write") && (
+      {canEdit && (
         <div className="row wrap" style={{ gap: 10, marginBottom: 20 }}>
           <button className="btn-ghost btn-sm" disabled={enriching} onClick={enrich}>
             <IconSparkles width={16} height={16} /> {enriching ? t("title.enriching") : t("title.enrichTmdb")}
@@ -169,7 +277,20 @@ export function TitleDetail() {
         </div>
       )}
 
-      {ti.kind === "series" && ti.seasons?.length > 0 && <Seasons seasons={ti.seasons} />}
+      {/* Manual watch dates for a movie (series mark watched per season/episode). */}
+      {canEdit && ti.kind === "movie" && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="row wrap" style={{ gap: 12, alignItems: "center" }}>
+            <strong>{t("title.watchDates")}</strong>
+            <ManualDates items={ti.manual_watches || []} onRemove={ctl.removeWatch} />
+            <div className="spacer" style={{ flex: 1 }} />
+            <AddWatch onAdd={addTitleWatch}
+              label={ti.manual_watches?.length ? t("title.addWatch") : t("title.markWatched")} />
+          </div>
+        </div>
+      )}
+
+      {ti.kind === "series" && ti.seasons?.length > 0 && <Seasons seasons={ti.seasons} ctl={ctl} />}
 
       {ti.cast?.length > 0 && (
         <>

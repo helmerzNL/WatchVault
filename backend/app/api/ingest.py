@@ -1,6 +1,7 @@
 """Ingestion API: file imports, API-sync connections, providers list."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 
 from flask import Blueprint, jsonify, request
@@ -8,7 +9,9 @@ from flask import Blueprint, jsonify, request
 from ..db import execute, query_all, query_one
 from ..ingest import (ingest_events, prune_connection_libraries,
                       clear_connection_events, reset_all_data,
-                      ingest_title_from_trakt, enqueue_trakt_title_syncs)
+                      ingest_title_from_trakt, enqueue_trakt_title_syncs,
+                      add_manual_movie, add_manual_episode, add_manual_season,
+                      remove_manual_watch)
 from ..ingest.adapters import get_adapter
 from ..auth.sessions import current_user, require_perm
 from ._common import household_user_ids
@@ -398,6 +401,97 @@ def trakt_sync_title(title_id: str):
     if result.get("status") == "no_title":
         return jsonify({"error": "title not found"}), 404
     return jsonify({"ok": True, **result})
+
+
+# ── Manual watch entries (mark watched / add a date by hand) ────────────────
+
+def _parse_watch_date(body: dict) -> dt.date:
+    """Resolve the optional ?date=YYYY-MM-DD body field; defaults to today.
+    Raises ValueError on a malformed date."""
+    raw = (body.get("date") or "").strip()
+    if not raw:
+        return dt.date.today()
+    return dt.date.fromisoformat(raw)
+
+
+@bp.post("/titles/<title_id>/watch")
+@require_perm("ingest.write")
+def mark_title_watched(title_id: str):
+    """Manually mark a movie watched (or add another watch date). Series use the
+    per-episode/per-season endpoints instead. Attributed to the active profile."""
+    user = current_user()
+    target = _target_user(user)
+    if not target:
+        return jsonify({"error": "invalid target user"}), 400
+    body = request.get_json(silent=True) or {}
+    try:
+        date = _parse_watch_date(body)
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
+    result = add_manual_movie(target, title_id, date)
+    status = result.get("status")
+    if status == "no_title":
+        return jsonify({"error": "title not found"}), 404
+    if status == "not_movie":
+        return jsonify({"error": "use the episode or season endpoint for series"}), 400
+    if status != "ok":
+        return jsonify({"error": "could not mark watched"}), 400
+    return jsonify({"ok": True, **result})
+
+
+@bp.post("/episodes/<episode_id>/watch")
+@require_perm("ingest.write")
+def mark_episode_watched(episode_id: str):
+    """Manually mark one episode watched (or add another watch date)."""
+    user = current_user()
+    target = _target_user(user)
+    if not target:
+        return jsonify({"error": "invalid target user"}), 400
+    body = request.get_json(silent=True) or {}
+    try:
+        date = _parse_watch_date(body)
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
+    result = add_manual_episode(target, episode_id, date)
+    if result.get("status") == "no_episode":
+        return jsonify({"error": "episode not found"}), 404
+    if result.get("status") != "ok":
+        return jsonify({"error": "could not mark watched"}), 400
+    return jsonify({"ok": True, **result})
+
+
+@bp.post("/titles/<title_id>/seasons/<int:season>/watch")
+@require_perm("ingest.write")
+def mark_season_watched(title_id: str, season: int):
+    """Manually mark every episode of one season watched on a date."""
+    user = current_user()
+    target = _target_user(user)
+    if not target:
+        return jsonify({"error": "invalid target user"}), 400
+    body = request.get_json(silent=True) or {}
+    try:
+        date = _parse_watch_date(body)
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
+    result = add_manual_season(target, title_id, season, date)
+    status = result.get("status")
+    if status == "no_title":
+        return jsonify({"error": "title not found"}), 404
+    if status == "no_episodes":
+        return jsonify({"error": "no episodes in this season"}), 404
+    if status != "ok":
+        return jsonify({"error": "could not mark watched"}), 400
+    return jsonify({"ok": True, **result})
+
+
+@bp.delete("/watch-events/<event_id>")
+@require_perm("ingest.write")
+def delete_watch_event(event_id: str):
+    """Remove a single hand-entered watch date. Only ``manual`` events belonging
+    to the current household can be deleted; imported/synced events are untouched."""
+    if remove_manual_watch(household_user_ids(), event_id):
+        return jsonify({"ok": True})
+    return jsonify({"error": "not found or not removable"}), 404
 
 
 @bp.post("/ingest/rebuild-agg")

@@ -260,6 +260,13 @@ const nl = {
   "title.notWatched": "Niet bekeken",
   "title.watchedOn": "Bekeken op {date}",
   "title.watchedOfEpisodes": "{watched} van {total} afleveringen bekeken",
+  "title.watchDates": "Kijkdatums",
+  "title.addWatch": "Kijkdatum toevoegen",
+  "title.markWatched": "Markeer als bekeken",
+  "title.markSeasonWatched": "Seizoen markeren",
+  "title.seasonMarked": "{n} afleveringen gemarkeerd",
+  "title.watchAdded": "Kijkdatum toegevoegd",
+  "title.watchRemoved": "Kijkdatum verwijderd",
 
   // ── Person ──────────────────────────────────────────────────────────────
   "person.biography": "Biografie",
