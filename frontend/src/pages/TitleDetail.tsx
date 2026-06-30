@@ -72,6 +72,28 @@ function WatchDateChips({ dates, onRemove }: { dates: string[]; onRemove: (date:
   );
 }
 
+// Per-title platform override: forces the title's soft (Trakt + manual) events
+// onto a chosen provider — e.g. "Cinema" — instead of the auto network guess.
+// "Auto" clears the override. Real digital syncs (Plex/Netflix/...) are unaffected.
+function PlatformSelect(
+  { value, providers, onChange }:
+  { value: string; providers: any[]; onChange: (providerId: string) => void },
+) {
+  const { t } = useT();
+  return (
+    <label className="row" style={{ gap: 6, alignItems: "center" }}>
+      <span className="caption">{t("title.platform")}:</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        style={{ minHeight: 34, padding: "4px 8px" }}>
+        <option value="">{t("title.platformAuto")}</option>
+        {providers.map((p) => (
+          <option key={p.id} value={p.id}>{providerLabel(t, p.key, p.name)}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 type Ctl = {
   canEdit: boolean;
   addEpisode: (episodeId: string, date: string) => Promise<void>;
@@ -172,6 +194,7 @@ export function TitleDetail() {
   const tGenre = useGenre();
   const { data: ti, loading, error, reload } = useFetch<any>(
     () => api.get(`/search/title/${id}`, { profile: scope, lang }), [id, scope, lang]);
+  const { data: providers } = useFetch<any[]>(() => api.get("/providers"), []);
   const [enriching, setEnriching] = useState(false);
   const [syncingTrakt, setSyncingTrakt] = useState(false);
 
@@ -203,6 +226,14 @@ export function TitleDetail() {
       reload();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
     finally { setSyncingTrakt(false); }
+  }
+
+  async function setPlatform(providerId: string) {
+    try {
+      await api.put(`/titles/${id}/platform-override`, { provider_id: providerId || null });
+      toast(t("title.platformUpdated"), "ok");
+      reload();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
   }
 
   async function addTitleWatch(date: string) {
@@ -284,7 +315,7 @@ export function TitleDetail() {
       {ti.overview && <p className="muted" style={{ margin: "20px 0" }}>{ti.overview}</p>}
 
       {canEdit && (
-        <div className="row wrap" style={{ gap: 10, marginBottom: 20 }}>
+        <div className="row wrap" style={{ gap: 10, marginBottom: 20, alignItems: "center" }}>
           <button className="btn-ghost btn-sm" disabled={enriching} onClick={enrich}>
             <IconSparkles width={16} height={16} /> {enriching ? t("title.enriching") : t("title.enrichTmdb")}
           </button>
@@ -293,6 +324,9 @@ export function TitleDetail() {
               <IconRefresh width={16} height={16} /> {syncingTrakt ? t("title.syncingTrakt") : t("title.syncTrakt")}
             </button>
           )}
+          <div className="spacer" style={{ flex: 1 }} />
+          <PlatformSelect value={ti.platform_override?.id || ""}
+            providers={providers || []} onChange={setPlatform} />
         </div>
       )}
 

@@ -29,6 +29,38 @@ def _hours(seconds, ndigits: int = 2) -> float:
     return round(float(seconds or 0) / 3600, ndigits)
 
 
+# Plex + Jellyfin are folded into one synthetic "Digital Library" platform in the
+# per-platform breakdowns. The frontend localises the label via the key.
+_DIGITAL_LIBRARY_KEYS = ("plex", "jellyfin")
+_DIGITAL_LIBRARY = {"key": "digital_library", "name": "Digital Library",
+                    "color": "#7C5CBF"}
+
+
+def _fold_digital_library(rows: list[dict], group_fields: tuple,
+                          sum_fields: tuple) -> list[dict]:
+    """Combine ``plex`` + ``jellyfin`` rows into one ``digital_library`` entry.
+
+    ``group_fields`` are dict keys identifying a bucket besides the provider
+    (e.g. ``()`` for the summary list, ``("period",)`` for the time series);
+    ``sum_fields`` are the numeric fields added together. Order is preserved with
+    the merged entry taking the position of its first contributor."""
+    out: list[dict] = []
+    index: dict[tuple, dict] = {}
+    for r in rows:
+        if r["key"] in _DIGITAL_LIBRARY_KEYS:
+            r = {**r, **_DIGITAL_LIBRARY}
+        bucket = tuple(r[g] for g in group_fields) + (r["key"],)
+        existing = index.get(bucket)
+        if existing is None:
+            nr = dict(r)
+            index[bucket] = nr
+            out.append(nr)
+        else:
+            for f in sum_fields:
+                existing[f] = existing[f] + r[f]
+    return out
+
+
 @bp.get("/summary")
 @require_perm("catalog.read")
 def summary():
@@ -79,9 +111,15 @@ def summary():
             "hours": _hours(month["seconds"], 1),
         },
         "providers": [
-            {"key": p["key"], "name": p["name"], "color": p["color"],
-             "events": int(p["events"] or 0), "hours": _hours(p["seconds"], 1)}
-            for p in providers
+            {"key": r["key"], "name": r["name"], "color": r["color"],
+             "events": r["events"], "hours": round(r["seconds"] / 3600, 1)}
+            for r in sorted(
+                _fold_digital_library(
+                    [{"key": p["key"], "name": p["name"], "color": p["color"],
+                      "events": int(p["events"] or 0), "seconds": float(p["seconds"] or 0)}
+                     for p in providers],
+                    (), ("events", "seconds")),
+                key=lambda x: x["events"], reverse=True)
         ],
         "recent": [{"date": r["date"].isoformat(), "count": int(r["count"])} for r in recent],
     })
@@ -162,10 +200,15 @@ def by_platform():
         (ids,),
     )
     return jsonify([
-        {"period": r["period"].isoformat(), "key": r["key"], "name": r["name"],
-         "color": r["color"], "events": int(r["events"]), "movies": int(r["movies"]),
-         "episodes": int(r["episodes"]), "hours": _hours(r["seconds"])}
-        for r in rows
+        {"period": r["period"], "key": r["key"], "name": r["name"],
+         "color": r["color"], "events": r["events"], "movies": r["movies"],
+         "episodes": r["episodes"], "hours": round(r["seconds"] / 3600, 2)}
+        for r in _fold_digital_library(
+            [{"period": r["period"].isoformat(), "key": r["key"], "name": r["name"],
+              "color": r["color"], "events": int(r["events"]), "movies": int(r["movies"]),
+              "episodes": int(r["episodes"]), "seconds": float(r["seconds"] or 0)}
+             for r in rows],
+            ("period",), ("events", "movies", "episodes", "seconds"))
     ])
 
 

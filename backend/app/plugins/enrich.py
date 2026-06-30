@@ -206,8 +206,8 @@ def enrich_title(title_id: str) -> dict:
     # correctly instead of to "Trakt".
     reattributed = None
     try:
-        from ..networks import reattribute_title_trakt_events
-        reattributed = reattribute_title_trakt_events(title_id)
+        from ..networks import reattribute_title_events
+        reattributed = reattribute_title_events(title_id)
     except Exception:  # noqa: BLE001 — enrichment must not fail on re-attribution
         reattributed = {"status": "error"}
 

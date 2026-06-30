@@ -403,7 +403,35 @@ def trakt_sync_title(title_id: str):
     return jsonify({"ok": True, **result})
 
 
-# ── Manual watch entries (mark watched / add a date by hand) ────────────────
+@bp.put("/titles/<title_id>/platform-override")
+@require_perm("ingest.write")
+def set_platform_override(title_id: str):
+    """Force the platform for a whole title, or clear it back to "Auto".
+
+    Body: ``{"provider_id": "<uuid>"}`` to override, or ``{"provider_id": null}``
+    to clear. The title's *soft* events (Trakt + manual) are immediately moved
+    onto the chosen provider; real digital syncs (Plex/Jellyfin/Netflix/CSV) are
+    left untouched. The override is household-wide (per title)."""
+    body = request.get_json(silent=True) or {}
+    provider_id = body.get("provider_id")
+
+    title = query_one("SELECT id FROM titles WHERE id = %s", (title_id,))
+    if not title:
+        return jsonify({"error": "title not found"}), 404
+
+    if provider_id:
+        prov = query_one("SELECT id, key FROM providers WHERE id = %s", (provider_id,))
+        if not prov:
+            return jsonify({"error": "unknown provider"}), 400
+        execute("UPDATE titles SET platform_override_provider_id = %s WHERE id = %s",
+                (provider_id, title_id))
+    else:
+        execute("UPDATE titles SET platform_override_provider_id = NULL WHERE id = %s",
+                (title_id,))
+
+    from ..networks import reattribute_title_events
+    result = reattribute_title_events(title_id)
+    return jsonify({"ok": True, "override": provider_id or None, **result})
 
 def _parse_watch_date(body: dict) -> dt.date:
     """Resolve the optional ?date=YYYY-MM-DD body field; defaults to today.

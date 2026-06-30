@@ -97,10 +97,16 @@ export function useGenre(): (name: string) => string {
 }
 
 // ── Provider localization ──────────────────────────────────────────────────
-// Provider names are stored non-localized (a single text column). Only the
-// generic "Other" provider — used for Trakt watches whose streaming service
-// isn't in the catalogue, and for movies — needs a localized label.
+// Provider names are stored non-localized (a single text column), so the labels
+// that must read naturally in every language are localized here by key:
+//   * generic ("Other")        — Trakt watches with no catalogued network, movies
+//   * cinema  ("Bioscoop")     — films seen in the cinema
+//   * plex / jellyfin          — shown together as one "Digital Library"
+//   * digital_library          — the merged Plex+Jellyfin entry in the stats
 export function providerLabel(t: TFn, key: string | undefined, name: string): string {
   if (key === "generic") return t("provider.generic");
+  if (key === "cinema") return t("provider.cinema");
+  if (key === "plex" || key === "jellyfin" || key === "digital_library")
+    return t("provider.digitalLibrary");
   return name;
 }

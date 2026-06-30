@@ -295,6 +295,19 @@ def test_ensure_networks_skips_movies_and_missing_tmdb():
     assert _ensure_networks({"id": "s1", "kind": "series", "tmdb_id": None, "metadata": {}}) == []
 
 
+def test_desired_provider_override_and_sources():
+    from app.networks import _desired_provider
+    # An override wins for every movable source.
+    assert _desired_provider("trakt", "ovr", "net", "man") == "ovr"
+    assert _desired_provider("manual", "ovr", "net", "man") == "ovr"
+    # Without an override: Trakt -> TMDB network, manual stays on its home provider.
+    assert _desired_provider("trakt", None, "net", "man") == "net"
+    assert _desired_provider("manual", None, "net", "man") == "man"
+    # Real digital syncs/imports are never moved, even with an override set.
+    for src in ("plex", "jellyfin", "netflix_csv", "generic", None):
+        assert _desired_provider(src, "ovr", "net", "man") is None
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))

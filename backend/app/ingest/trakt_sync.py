@@ -76,8 +76,8 @@ def ingest_title_from_trakt(target_user_id: str, household_id: str,
     # Move the just-synced Trakt events onto the title's real streaming service
     # (TMDB network) when the title is already enriched.
     try:
-        from ..networks import reattribute_title_trakt_events
-        reattribute_title_trakt_events(title_id)
+        from ..networks import reattribute_title_events
+        reattribute_title_events(title_id)
     except Exception:  # noqa: BLE001
         pass
     return {"status": "ok", "fetched": len(events), **summary}

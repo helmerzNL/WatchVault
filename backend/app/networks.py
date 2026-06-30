@@ -7,17 +7,23 @@ configured providers and move the Trakt-sourced ``watch_events`` onto it — so
 the title page *and* every aggregate/statistic count those hours under the real
 service instead of "Trakt".
 
+A title can also carry a manual **platform override** (``titles.platform_override_
+provider_id``): when set it wins over the network guess and the title's soft
+events are forced onto that provider (e.g. "Cinema").
+
 Rules:
-  * Only Trakt-sourced events are touched; Plex/Jellyfin/Netflix already *are*
-    the service/library they came from.
-  * A network that isn't in the catalogue — and movies, which have no network —
-    fall back to the generic ``Other`` provider (localized "Overig" in the UI).
+  * Only *soft* events are ever moved — Trakt-sourced and manual ones. Real
+    digital syncs/imports (Plex, Jellyfin, Netflix CSV, generic CSV) already
+    *are* the service/library they came from and are never re-attributed.
+  * Target per event: an override wins for both; otherwise a Trakt event goes to
+    its TMDB network (or the generic ``Other`` provider for movies / unknown
+    networks) and a manual event stays on the ``manual`` provider.
   * ``dedup_hash`` is intentionally left untouched: it was computed with the
-    Trakt provider id, so a later Trakt sync recomputes the same hash and hits
+    original provider id, so a later sync recomputes the same hash and hits
     ``ON CONFLICT (dedup_hash) DO NOTHING`` — the event is never re-created.
   * Aggregates (``watch_daily_agg``) are keyed on ``provider_id``, so after the
-    move we recompute both the old (Trakt) and new provider over the affected
-    days via ``wv_recompute_agg_days``.
+    move we recompute both the old and the new provider over the affected days
+    via ``wv_recompute_agg_days``.
 """
 from __future__ import annotations
 
@@ -71,6 +77,33 @@ def resolve_network_provider(cur, networks: list[dict]):
     return str(row["id"]), row["key"]
 
 
+# Event ``raw->>'source'`` values that may be re-attributed. Everything else
+# (plex, jellyfin, netflix_csv, generic CSV imports) is a real digital sync and
+# is left on its own provider.
+MOVABLE_SOURCES = ("trakt", "manual")
+
+
+def _desired_provider(source: str | None, override_id: str | None,
+                      network_id: str | None, manual_id: str | None) -> str | None:
+    """Target provider id for one event, or ``None`` if it must not be moved.
+
+    An override wins for any movable event. Otherwise a Trakt event resolves to
+    its TMDB network and a manual event stays on the ``manual`` provider."""
+    if source not in MOVABLE_SOURCES:
+        return None
+    if override_id:
+        return override_id
+    if source == "manual":
+        return manual_id
+    return network_id  # trakt
+
+
+def _provider_id_by_key(cur, key: str) -> str | None:
+    cur.execute("SELECT id FROM providers WHERE key = %s", (key,))
+    row = cur.fetchone()
+    return str(row["id"]) if row else None
+
+
 def _ensure_networks(title: dict) -> list[dict]:
     """Return a series' TMDB networks, lazily fetching + persisting them when
     missing.
@@ -110,101 +143,131 @@ def _ensure_networks(title: dict) -> list[dict]:
     return networks
 
 
-def reattribute_title_trakt_events(title_id: str) -> dict:
-    """Move a title's Trakt-sourced watch events onto the provider matching its
-    TMDB network (or the generic provider), recomputing aggregates for every
-    affected provider over the affected days.
+def reattribute_title_events(title_id: str) -> dict:
+    """Move a title's *soft* (Trakt + manual) watch events onto their correct
+    provider, recomputing aggregates for every affected provider over the
+    affected days.
 
-    Trakt-origin events are identified by ``raw->>'source' = 'trakt'`` rather than
-    their current provider, so events already moved onto a provider (e.g. the
-    generic one from an earlier pass, before the network was known) are picked up
-    again and re-attributed once ``metadata.networks`` is available. Events
-    already on the resolved target are skipped, making this idempotent.
+    Target per event (see :func:`_desired_provider`): a title-level platform
+    override wins; otherwise Trakt events go to their TMDB network (or the generic
+    provider) and manual events stay on the ``manual`` provider. Real digital
+    syncs (Plex/Jellyfin/Netflix CSV/generic imports) are never touched.
+
+    Soft events are selected by ``raw->>'source'`` rather than their current
+    provider, so events already moved in an earlier pass are revisited and
+    re-targeted (e.g. when an override is set or cleared, or once
+    ``metadata.networks`` becomes available). Events already on their desired
+    provider are skipped, making this idempotent.
 
     Returns a status dict with the number of events ``moved`` and ``collapsed``
     (tombstoned because the same watch already exists on the target provider)."""
     with connection() as conn, conn.cursor() as cur:
-        cur.execute("SELECT id, kind, tmdb_id, metadata FROM titles WHERE id = %s",
-                    (title_id,))
+        cur.execute(
+            "SELECT id, kind, tmdb_id, metadata, platform_override_provider_id "
+            "FROM titles WHERE id = %s", (title_id,))
         title = cur.fetchone()
     if not title:
         return {"status": "no_title"}
 
-    networks = _ensure_networks(dict(title))
+    override_id = title["platform_override_provider_id"]
+    override_id = str(override_id) if override_id else None
+    # The TMDB network is only needed when there is no override and the title has
+    # Trakt events; fetching it lazily here keeps backfills cheap for overrides.
+    networks = [] if override_id else _ensure_networks(dict(title))
 
     with connection() as conn, conn.cursor() as cur:
-        target_id, target_key = resolve_network_provider(cur, networks)
+        network_id, network_key = resolve_network_provider(cur, networks)
+        manual_id = _provider_id_by_key(cur, "manual")
+        primary_key = None
+        if override_id:
+            cur.execute("SELECT key FROM providers WHERE id = %s", (override_id,))
+            r = cur.fetchone()
+            primary_key = r["key"] if r else None
+        else:
+            primary_key = network_key
 
+        placeholders = ", ".join(["%s"] * len(MOVABLE_SOURCES))
         cur.execute(
-            "SELECT id, user_id, watched_date, episode_id, provider_id "
+            "SELECT id, user_id, watched_date, episode_id, provider_id, "
+            "  raw->>'source' AS source "
             "FROM watch_events "
-            "WHERE title_id = %s AND raw->>'source' = 'trakt' AND deleted_at IS NULL "
-            "  AND provider_id <> %s",
-            (title_id, target_id))
+            f"WHERE title_id = %s AND raw->>'source' IN ({placeholders}) "
+            "  AND deleted_at IS NULL",
+            (title_id, *MOVABLE_SOURCES))
         rows = cur.fetchall()
         if not rows:
-            return {"status": "ok", "moved": 0, "collapsed": 0, "provider": target_key}
+            return {"status": "ok", "moved": 0, "collapsed": 0, "provider": primary_key}
 
-        # Capture the affected days per old provider (to drain its agg) and per
-        # user (to refill the target's agg).
-        affected_old: dict[tuple[str, str], set] = {}
-        user_dates: dict[str, set] = {}
-        for r in rows:
-            affected_old.setdefault(
-                (str(r["user_id"]), str(r["provider_id"])), set()).add(r["watched_date"])
-            user_dates.setdefault(str(r["user_id"]), set()).add(r["watched_date"])
+        # (user_id, provider_id) -> affected dates, for every provider we drain
+        # (old) or fill (new) so the recompute touches exactly the right rollups.
+        recompute: dict[tuple[str, str], set] = {}
+
+        def _mark(uid: str, pid: str, date):
+            recompute.setdefault((uid, pid), set()).add(date)
 
         moved = collapsed = 0
         for r in rows:
-            # Collapse (tombstone) the Trakt event when a *real* provider event
-            # already covers this watch, to avoid double counting. Other Trakt
-            # events are excluded so two migrating events don't cancel each other.
+            desired = _desired_provider(r["source"], override_id, network_id, manual_id)
+            if not desired or str(r["provider_id"]) == desired:
+                continue
+            uid = str(r["user_id"])
+            # Collapse (tombstone) the soft event when a *real* (non-movable)
+            # provider event already covers this watch, to avoid double counting.
+            # Other soft events are excluded so two migrating events don't cancel.
             cur.execute(
                 "SELECT 1 FROM watch_events "
                 "WHERE user_id = %s AND title_id = %s AND provider_id = %s "
                 "  AND watched_date = %s AND deleted_at IS NULL "
                 "  AND episode_id IS NOT DISTINCT FROM %s AND id <> %s "
-                "  AND COALESCE(raw->>'source', '') <> 'trakt' LIMIT 1",
-                (str(r["user_id"]), title_id, target_id, r["watched_date"],
-                 r["episode_id"], r["id"]))
+                f"  AND COALESCE(raw->>'source', '') NOT IN ({placeholders}) LIMIT 1",
+                (uid, title_id, desired, r["watched_date"],
+                 r["episode_id"], r["id"], *MOVABLE_SOURCES))
             if cur.fetchone():
                 cur.execute("UPDATE watch_events SET deleted_at = now() WHERE id = %s",
                             (r["id"],))
+                _mark(uid, str(r["provider_id"]), r["watched_date"])
                 collapsed += 1
                 continue
             cur.execute("UPDATE watch_events SET provider_id = %s WHERE id = %s",
-                        (target_id, r["id"]))
+                        (desired, r["id"]))
+            _mark(uid, str(r["provider_id"]), r["watched_date"])
+            _mark(uid, desired, r["watched_date"])
             moved += 1
 
-        for (uid, old_pid), dates in affected_old.items():
-            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, old_pid, list(dates)))
-        for uid, dates in user_dates.items():
-            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, target_id, list(dates)))
+        for (uid, pid), dates in recompute.items():
+            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, pid, list(dates)))
 
     return {"status": "ok", "moved": moved, "collapsed": collapsed,
-            "provider": target_key}
+            "provider": primary_key}
 
 
-def reattribute_all_trakt() -> dict:
-    """Backfill: re-attribute every enriched title that still has Trakt events.
+def reattribute_all() -> dict:
+    """Backfill: re-attribute every title that has soft events to move.
 
     Used as a one-time job on deploy so existing history is moved off "Trakt"
-    onto the real services without waiting for each title to be re-enriched.
-    Titles are found via ``raw->>'source' = 'trakt'`` so events already moved to
-    the generic provider in an earlier (network-less) pass are revisited."""
+    onto the real services (and any platform overrides are applied) without
+    waiting for each title to be re-enriched or re-synced. Titles are found via
+    their Trakt events (enriched, so a network is resolvable) or because they
+    carry a platform override (whose manual/Trakt events must follow it)."""
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT DISTINCT we.title_id FROM watch_events we "
             "JOIN titles t ON t.id = we.title_id "
-            "WHERE we.raw->>'source' = 'trakt' AND we.deleted_at IS NULL "
-            "  AND t.enriched_at IS NOT NULL")
+            "WHERE we.deleted_at IS NULL AND ("
+            "    (we.raw->>'source' = 'trakt' AND t.enriched_at IS NOT NULL) "
+            "    OR t.platform_override_provider_id IS NOT NULL)")
         title_ids = [str(r["title_id"]) for r in cur.fetchall()]
 
     titles = moved = collapsed = 0
     for tid in title_ids:
-        res = reattribute_title_trakt_events(tid)
+        res = reattribute_title_events(tid)
         if res.get("status") == "ok":
             titles += 1
             moved += res.get("moved", 0)
             collapsed += res.get("collapsed", 0)
     return {"status": "ok", "titles": titles, "moved": moved, "collapsed": collapsed}
+
+
+# Backwards-compatible aliases (older imports / job dispatch).
+reattribute_title_trakt_events = reattribute_title_events
+reattribute_all_trakt = reattribute_all

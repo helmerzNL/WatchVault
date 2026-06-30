@@ -170,6 +170,12 @@ def title_detail(title_id: str):
         trakt_ok = trakt_configured(str(current_user()["household_id"]))
     except Exception:  # noqa: BLE001 — never break title detail over this hint
         trakt_ok = False
+    override = None
+    if t.get("platform_override_provider_id"):
+        op = query_one("SELECT id, key, name FROM providers WHERE id = %s",
+                       (t["platform_override_provider_id"],))
+        if op:
+            override = {"id": str(op["id"]), "key": op["key"], "name": op["name"]}
     return jsonify({
         "id": str(t["id"]), "title": t["title"], "kind": t["kind"], "year": t["year"],
         "overview": overview, "overviews": overviews,
@@ -178,6 +184,7 @@ def title_detail(title_id: str):
         "runtime_minutes": t["runtime_minutes"], "tmdb_id": t["tmdb_id"],
         "external_ids": t["external_ids"],
         "trakt_configured": trakt_ok,
+        "platform_override": override,
         "genres": [g["name"] for g in genres],
         "networks": networks,
         "seasons": seasons,
