@@ -5,14 +5,14 @@ import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, BackLink } from "../components/ui";
 import { IconSparkles, IconCheck, IconRefresh, IconPlus, IconClose } from "../components/icons";
-import { fmtDate } from "../lib/format";
+import { fmtDate, todayLocalKey, localDateKey } from "../lib/format";
 import { useState } from "react";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayLocalKey();
 const yesterday = () => {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return localDateKey(d);
 };
 
 // A network/broadcaster logo (from TMDB) shown on its own — no name beside it.

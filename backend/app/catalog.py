@@ -159,6 +159,36 @@ def apply_title_details(cur, title_id: str, details: dict, source: str) -> None:
         link_person(cur, title_id, c, "crew")
 
 
+def dedupe_title_by_tmdb(cur, kind: str, tmdb_id, current_title_id: str) -> str:
+    """Collapse every title that shares ``(kind, tmdb_id)`` into the oldest one.
+
+    Used at enrich time: ``current_title_id`` is the title being enriched (it may
+    not carry ``tmdb_id`` yet), and any *other* title already on that tmdb_id is a
+    duplicate of the same show imported from a second source. The oldest row is
+    kept as canonical (stable id), the rest are merged into it via the SQL
+    ``wv_merge_titles`` helper. Returns the surviving canonical id so the caller
+    can keep working on it.
+    """
+    if not tmdb_id:
+        return current_title_id
+    cur.execute(
+        "SELECT id FROM titles WHERE kind = %s AND tmdb_id = %s",
+        (kind, tmdb_id))
+    candidates = [str(r["id"]) for r in cur.fetchall()]
+    if current_title_id not in candidates:
+        candidates.append(current_title_id)
+    if len(candidates) < 2:
+        return current_title_id
+    cur.execute(
+        "SELECT id FROM titles WHERE id = ANY(%s::uuid[]) ORDER BY created_at, id LIMIT 1",
+        (candidates,))
+    canonical = str(cur.fetchone()["id"])
+    for dup in candidates:
+        if dup != canonical:
+            cur.execute("SELECT wv_merge_titles(%s::uuid, %s::uuid)", (canonical, dup))
+    return canonical
+
+
 def upsert_episode(cur, title_id: str, ep: dict) -> None:
     """Fill/refresh one episode's metadata (fill-empty for scalars). Season/episode
     numbers are required; rows created during ingest (name only) get enriched here."""

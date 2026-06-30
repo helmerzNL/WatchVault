@@ -95,11 +95,16 @@ function PlatformBreakdown({ scope }: { scope: string }) {
 
 function DailyHeatmap({ scope }: { scope: string }) {
   const { t } = useT();
+  const cur = new Date().getFullYear();
+  // Offer every year that actually has data (newest first), not just a fixed
+  // 2-year window, so older history stays reachable.
+  const { data: yearsData } = useFetch<number[]>(
+    () => api.get("/stats/years", { profile: scope }), [scope]);
   const years = useMemo(() => {
-    const y = new Date().getFullYear();
-    return [y, y - 1, y - 2];
-  }, []);
-  const [year, setYear] = useState(years[0]);
+    const set = new Set<number>([cur, cur - 1, cur - 2, ...(yearsData || [])]);
+    return Array.from(set).sort((a, b) => b - a);
+  }, [yearsData, cur]);
+  const [year, setYear] = useState(cur);
   const [selected, setSelected] = useState<string | null>(null);
   const { data, loading, error, reload } = useFetch<any[]>(
     () => api.get("/stats/heatmap", { profile: scope, year }), [scope, year]);

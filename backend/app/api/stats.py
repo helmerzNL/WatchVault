@@ -152,6 +152,21 @@ def heatmap():
     ])
 
 
+@bp.get("/years")
+@require_perm("catalog.read")
+def years():
+    """Distinct years that have activity for the scope (newest first), so the
+    daily-activity view can offer every year with data instead of a fixed window."""
+    ids = _ids()
+    rows = query_all(
+        "SELECT DISTINCT extract(year FROM a.watched_date)::int AS year "
+        "FROM watch_daily_agg a WHERE a.user_id = ANY(%s::uuid[]) "
+        "ORDER BY year DESC",
+        [ids],
+    )
+    return jsonify([r["year"] for r in rows])
+
+
 @bp.get("/trend")
 @require_perm("catalog.read")
 def trend():

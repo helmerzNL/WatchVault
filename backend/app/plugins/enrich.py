@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import re
 
-from ..catalog import apply_person_details, apply_title_details, upsert_episode
+from ..catalog import (apply_person_details, apply_title_details,
+                       dedupe_title_by_tmdb, upsert_episode)
 from ..db import connection
 from . import runtime
 
@@ -174,6 +175,12 @@ def enrich_title(title_id: str) -> dict:
         return {"status": "no_match"}
 
     with connection() as conn, conn.cursor() as cur:
+        # Collapse any other title that already carries this tmdb_id — the same
+        # film/series imported from a second source under a different title
+        # notation. The oldest row wins and absorbs the rest; `title_id` is then
+        # the surviving canonical id.
+        if matched_tmdb_id:
+            title_id = dedupe_title_by_tmdb(cur, matched_kind, matched_tmdb_id, title_id)
         # Correct the media type when the match came from the other endpoint.
         if matched_kind != kind:
             cur.execute("UPDATE titles SET kind = %s, updated_at = now() WHERE id = %s",

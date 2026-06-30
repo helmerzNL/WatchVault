@@ -22,6 +22,7 @@ export interface Prefs {
   accent: string;
   default_profile: string;
   language: string;
+  expert?: boolean;
   [k: string]: any;
 }
 
@@ -53,7 +54,7 @@ interface AppCtx {
   can: (perm: string) => boolean;
 }
 
-const DEFAULT_PREFS: Prefs = { theme: "system", accent: "#0a84ff", default_profile: "all", language: "en" };
+const DEFAULT_PREFS: Prefs = { theme: "system", accent: "#0a84ff", default_profile: "all", language: "en", expert: false };
 
 const Ctx = createContext<AppCtx>(null as any);
 export const useApp = () => useContext(Ctx);

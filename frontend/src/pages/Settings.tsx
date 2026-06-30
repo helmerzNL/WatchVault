@@ -36,6 +36,16 @@ function Appearance() {
             </label>
           </div>
         </div>
+        <div>
+          <label>{t("settings.expert")}</label>
+          <div className="row" style={{ gap: 12, alignItems: "center" }}>
+            <div className="seg">
+              <button className={prefs.expert ? "active" : ""} onClick={() => savePrefs({ expert: true })}>{t("common.on")}</button>
+              <button className={!prefs.expert ? "active" : ""} onClick={() => savePrefs({ expert: false })}>{t("common.off")}</button>
+            </div>
+            <span className="caption" style={{ flex: 1 }}>{t("settings.expertHint")}</span>
+          </div>
+        </div>
       </div>
     </Section>
   );
@@ -198,14 +208,15 @@ function Account() {
 }
 
 function AttributionLog() {
-  const { can, toast } = useApp();
+  const { can, toast, prefs } = useApp();
   const { t } = useT();
+  const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<"all" | "other">("other");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [history, setHistory] = useState<Record<string, any[]>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const log = useFetch<any>(() => api.get("/attribution-log", { filter }), [filter]);
-  if (!can("ingest.write")) return null;
+  if (!can("ingest.write") || !prefs.expert) return null;
 
   async function toggleHistory(titleId: string) {
     if (expanded === titleId) { setExpanded(null); return; }
@@ -238,7 +249,10 @@ function AttributionLog() {
 
   const items: any[] = log.data?.items || [];
   return (
-    <Section title={t("attrib.title")}>
+    <Section title={t("attrib.title")}
+      right={<button className="btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}>
+        {open ? t("common.collapse") : t("common.expand")}</button>}>
+      {open && (
       <div className="card col" style={{ gap: 14 }}>
         <span className="caption">{t("attrib.help")}</span>
         <div className="row wrap" style={{ gap: 10, alignItems: "center" }}>
@@ -285,6 +299,7 @@ function AttributionLog() {
           {log.data && items.length === 0 && <p className="muted">{t("attrib.empty")}</p>}
         </div>
       </div>
+      )}
     </Section>
   );
 }
