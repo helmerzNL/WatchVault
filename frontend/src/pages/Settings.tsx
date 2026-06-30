@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT } from "../lib/i18n";
+import { useT, providerLabel } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { addPasskey } from "../lib/auth";
@@ -196,6 +197,98 @@ function Account() {
   );
 }
 
+function AttributionLog() {
+  const { can, toast } = useApp();
+  const { t } = useT();
+  const [filter, setFilter] = useState<"all" | "other">("other");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [history, setHistory] = useState<Record<string, any[]>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const log = useFetch<any>(() => api.get("/attribution-log", { filter }), [filter]);
+  if (!can("ingest.write")) return null;
+
+  async function toggleHistory(titleId: string) {
+    if (expanded === titleId) { setExpanded(null); return; }
+    setExpanded(titleId);
+    if (!history[titleId]) {
+      try {
+        const res = await api.get(`/attribution-log/${titleId}/history`);
+        setHistory((h) => ({ ...h, [titleId]: res.items || [] }));
+      } catch { /* ignore */ }
+    }
+  }
+
+  async function reattribute(titleId: string) {
+    setBusy(titleId);
+    try {
+      await api.post(`/attribution-log/${titleId}/reattribute`);
+      toast(t("attrib.reattributed"));
+      setHistory((h) => { const n = { ...h }; delete n[titleId]; return n; });
+      log.reload();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+    finally { setBusy(null); }
+  }
+
+  async function reattributeAll() {
+    setBusy("__all__");
+    try { await api.post("/attribution-log/reattribute-all"); toast(t("attrib.queued")); }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+    finally { setBusy(null); }
+  }
+
+  const items: any[] = log.data?.items || [];
+  return (
+    <Section title={t("attrib.title")}>
+      <div className="card col" style={{ gap: 14 }}>
+        <span className="caption">{t("attrib.help")}</span>
+        <div className="row wrap" style={{ gap: 10, alignItems: "center" }}>
+          <div className="seg">
+            <button className={filter === "other" ? "active" : ""} onClick={() => setFilter("other")}>{t("attrib.filterOther")}</button>
+            <button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>{t("attrib.filterAll")}</button>
+          </div>
+          <div className="spacer" style={{ flex: 1 }} />
+          {log.data && <span className="caption">{t("attrib.summary", { other: log.data.other, total: log.data.total })}</span>}
+          <button className="btn-ghost btn-sm" style={{ flexShrink: 0 }} disabled={busy === "__all__"} onClick={reattributeAll}>{t("attrib.reattributeAll")}</button>
+        </div>
+        <div className="col" style={{ gap: 0 }}>
+          {items.map((it) => (
+            <div key={it.title_id} className="col" style={{ gap: 0 }}>
+              <div className="list-row" style={{ flexWrap: "wrap" }}>
+                <div className="col" style={{ flex: 1, gap: 2, minWidth: 200 }}>
+                  <Link to={`/title/${it.title_id}`} style={{ fontWeight: 600 }}>{it.title}</Link>
+                  <span className="caption">
+                    {it.kind === "movie" ? t("common.film") : t("common.series")} · {t(`attrib.reason.${it.reason}`)}
+                  </span>
+                  {it.networks.length > 0 && (
+                    <span className="caption">{t("attrib.networks")}: {it.networks.join(", ")}</span>
+                  )}
+                </div>
+                <span className="chip" style={{ minHeight: 0, padding: "2px 10px", background: it.provider_color || "var(--accent)", color: "#fff" }}>
+                  {providerLabel(t, it.provider_key, it.provider_name || it.provider_key || "")}
+                </span>
+                <button className="btn-ghost btn-sm" style={{ flexShrink: 0 }} onClick={() => toggleHistory(it.title_id)}>{t("attrib.history")}</button>
+                <button className="btn-ghost btn-sm" style={{ flexShrink: 0 }} disabled={busy === it.title_id} onClick={() => reattribute(it.title_id)}>{t("attrib.reattribute")}</button>
+              </div>
+              {expanded === it.title_id && (
+                <div className="col" style={{ gap: 4, padding: "4px 0 12px 12px" }}>
+                  {(history[it.title_id] || []).map((h: any, i: number) => (
+                    <span key={i} className="caption">
+                      {fmtDate(h.created_at)} · {providerLabel(t, h.provider_key, h.provider_key || "—")} · {t(`attrib.reason.${h.reason}`)}
+                      {h.moved ? ` · ${t("attrib.moved", { n: h.moved })}` : ""}
+                    </span>
+                  ))}
+                  {(history[it.title_id] || []).length === 0 && <span className="caption muted">—</span>}
+                </div>
+              )}
+            </div>
+          ))}
+          {log.data && items.length === 0 && <p className="muted">{t("attrib.empty")}</p>}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 function DangerZone() {
   const { can, toast } = useApp();
   const { t } = useT();
@@ -250,6 +343,7 @@ export function Settings() {
       <Household />
       <Plugins />
       <Tokens />
+      <AttributionLog />
       <Account />
       <DangerZone />
     </>

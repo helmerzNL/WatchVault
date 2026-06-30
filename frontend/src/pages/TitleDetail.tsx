@@ -119,6 +119,32 @@ function PlatformSelect(
   );
 }
 
+// Build the platform-override dropdown: hide Cinema for non-movies and fold
+// Plex + Jellyfin into a single "Digital Library" entry (represented by the
+// first such provider's id). Also remaps the currently-selected value so a
+// Plex/Jellyfin override still shows the merged option as selected.
+function platformDropdown(providers: any[], kind: string, currentId: string) {
+  const visible = (providers || []).filter(
+    (p: any) => p.key !== "cinema" || kind === "movie");
+  const options: any[] = [];
+  let digitalRepId: string | null = null;
+  for (const p of visible) {
+    if (p.key === "plex" || p.key === "jellyfin") {
+      if (digitalRepId) continue;
+      digitalRepId = p.id;
+      options.push({ ...p, key: "digital_library" });
+    } else {
+      options.push(p);
+    }
+  }
+  let value = currentId;
+  const cur = (providers || []).find((p: any) => p.id === currentId);
+  if (cur && (cur.key === "plex" || cur.key === "jellyfin") && digitalRepId) {
+    value = digitalRepId;
+  }
+  return { options, value };
+}
+
 type Ctl = {
   canEdit: boolean;
   addEpisode: (episodeId: string, date: string) => Promise<void>;
@@ -351,10 +377,10 @@ export function TitleDetail() {
             </button>
           )}
           <div className="spacer" style={{ flex: 1 }} />
-          <PlatformSelect value={ti.platform_override?.id || ""}
-            providers={(providers || []).filter(
-              (p: any) => p.key !== "cinema" || ti.kind === "movie")}
-            onChange={setPlatform} />
+          {(() => {
+            const pd = platformDropdown(providers || [], ti.kind, ti.platform_override?.id || "");
+            return <PlatformSelect value={pd.value} providers={pd.options} onChange={setPlatform} />;
+          })()}
         </div>
       )}
 

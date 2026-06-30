@@ -51,7 +51,10 @@ def search():
         where.append("EXISTS (SELECT 1 FROM title_people tp JOIN people pe ON pe.id = tp.person_id "
                      "WHERE tp.title_id = t.id AND pe.name ILIKE %s)")
         params.append(f"%{actor}%")
-    if platform:
+    if platform == "digital_library":
+        # Plex + Jellyfin are presented as one "Digital Library" platform.
+        where.append("we.provider_id IN (SELECT id FROM providers WHERE key IN ('plex','jellyfin'))")
+    elif platform:
         where.append("we.provider_id IN (SELECT id FROM providers WHERE key = %s OR name ILIKE %s)")
         params += [platform, f"%{platform}%"]
     if year:

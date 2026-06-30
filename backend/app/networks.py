@@ -104,6 +104,73 @@ def _provider_id_by_key(cur, key: str) -> str | None:
     return str(row["id"]) if row else None
 
 
+def _attribution_reason(title: dict, override_id: str | None,
+                        networks: list[dict], network_key: str | None) -> str:
+    """Explain *why* a title's soft events land where they do — for the
+    attribution log. Mirrors the resolution order in
+    :func:`reattribute_title_events`."""
+    if override_id:
+        return "override"
+    if network_key and network_key != "generic":
+        return "network_matched"
+    # Fell through to the generic ("Other") provider — classify the cause.
+    if title.get("kind") != "series":
+        return "movie_no_networks"
+    if not title.get("tmdb_id"):
+        return "not_enriched"
+    metadata = title.get("metadata") or {}
+    if "networks" not in metadata and not title.get("enriched_at"):
+        return "not_enriched"
+    if networks:
+        return "network_unmapped"
+    return "no_networks"
+
+
+def _raw_network_names(networks: list[dict]) -> list[str]:
+    return [n.get("name") for n in (networks or []) if n.get("name")]
+
+
+def _log_attribution(title: dict, provider_key: str | None, reason: str,
+                     networks: list[dict], events: int, moved: int,
+                     collapsed: int) -> None:
+    """Upsert the latest attribution decision and append a history row when the
+    decision changed (different provider/reason) or events actually moved.
+
+    Best-effort: any failure here is swallowed so it can never break the
+    re-attribution itself."""
+    title_id = str(title["id"])
+    names = _raw_network_names(networks)
+    networks_json = json.dumps(names)
+    try:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT provider_key, reason FROM attribution_log WHERE title_id = %s",
+                        (title_id,))
+            prev = cur.fetchone()
+            changed = (prev is None or prev["provider_key"] != provider_key
+                       or prev["reason"] != reason or moved or collapsed)
+            cur.execute(
+                "INSERT INTO attribution_log "
+                "  (title_id, title, kind, provider_key, reason, networks, events, "
+                "   moved, collapsed, updated_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, now()) "
+                "ON CONFLICT (title_id) DO UPDATE SET "
+                "  title = EXCLUDED.title, kind = EXCLUDED.kind, "
+                "  provider_key = EXCLUDED.provider_key, reason = EXCLUDED.reason, "
+                "  networks = EXCLUDED.networks, events = EXCLUDED.events, "
+                "  moved = EXCLUDED.moved, collapsed = EXCLUDED.collapsed, "
+                "  updated_at = now()",
+                (title_id, title.get("title") or "", title.get("kind"),
+                 provider_key, reason, networks_json, events, moved, collapsed))
+            if changed:
+                cur.execute(
+                    "INSERT INTO attribution_log_history "
+                    "  (title_id, provider_key, reason, networks, moved, collapsed) "
+                    "VALUES (%s, %s, %s, %s::jsonb, %s, %s)",
+                    (title_id, provider_key, reason, networks_json, moved, collapsed))
+    except Exception:  # noqa: BLE001 — logging must never break attribution
+        pass
+
+
 def _ensure_networks(title: dict) -> list[dict]:
     """Return a series' TMDB networks, lazily fetching + persisting them when
     missing.
@@ -163,7 +230,8 @@ def reattribute_title_events(title_id: str) -> dict:
     (tombstoned because the same watch already exists on the target provider)."""
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT id, kind, tmdb_id, metadata, platform_override_provider_id "
+            "SELECT id, title, kind, tmdb_id, metadata, enriched_at, "
+            "  platform_override_provider_id "
             "FROM titles WHERE id = %s", (title_id,))
         title = cur.fetchone()
     if not title:
@@ -185,6 +253,8 @@ def reattribute_title_events(title_id: str) -> dict:
             primary_key = r["key"] if r else None
         else:
             primary_key = network_key
+
+        reason = _attribution_reason(dict(title), override_id, networks, network_key)
 
         placeholders = ", ".join(["%s"] * len(MOVABLE_SOURCES))
         cur.execute(
@@ -237,6 +307,8 @@ def reattribute_title_events(title_id: str) -> dict:
         for (uid, pid), dates in recompute.items():
             cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, pid, list(dates)))
 
+    _log_attribution(dict(title), primary_key, reason, networks,
+                     len(rows), moved, collapsed)
     return {"status": "ok", "moved": moved, "collapsed": collapsed,
             "provider": primary_key}
 
