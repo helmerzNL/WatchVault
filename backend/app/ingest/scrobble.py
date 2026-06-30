@@ -15,7 +15,7 @@ from typing import Optional
 from ..db import connection
 from ..util import normalize_text, now_utc
 from .models import NormalizedEvent
-from .normalize import ingest_events
+from .normalize import _resolve_title, ingest_events
 
 # Plex webhook event -> our coarse event name.
 _PLEX_EVENTS = {
@@ -218,6 +218,33 @@ def _resolve_profile_id(cur, household_id: str, evt: ScrobbleEvent,
     return token_user_id
 
 
+def _resolve_session_title(cur, evt: ScrobbleEvent) -> tuple[Optional[str], bool]:
+    """Find (or create) the central film/series title for a live session so the
+    now-playing card can show *its* poster (not the episode's). Series resolve by
+    normalized show title only — an episode's own tmdb_id is not the show's, so it
+    must never be written onto the series title. Movies resolve by tmdb_id then
+    normalized title. Mirrors the ingest matcher (`_resolve_title`)."""
+    title = (evt.raw_title or "").strip()
+    if not title:
+        return None, False
+    if evt.kind == "series":
+        return _resolve_title(cur, "series", title, None, None, {})
+    return _resolve_title(cur, "movie", title, evt.year, evt.tmdb_id, {})
+
+
+def _maybe_enqueue_enrich(cur, title_id: str) -> None:
+    """Queue TMDB enrichment for a freshly-seen title so its poster shows up while
+    it is still playing — unless it is already enriched or a job is pending."""
+    cur.execute(
+        "INSERT INTO background_jobs (kind, payload) "
+        "SELECT 'enrich_title', %s::jsonb "
+        "WHERE EXISTS (SELECT 1 FROM titles WHERE id = %s AND enriched_at IS NULL) "
+        "  AND NOT EXISTS (SELECT 1 FROM background_jobs WHERE kind = 'enrich_title' "
+        "    AND payload->>'title_id' = %s AND status = 'pending')",
+        (json.dumps({"title_id": str(title_id)}), str(title_id), str(title_id)),
+    )
+
+
 def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
                     threshold: float = DEFAULT_THRESHOLD) -> dict:
     """UPSERT the now-playing session and commit it to watch_events when finished.
@@ -254,6 +281,15 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
         row = cur.fetchone()
         session_id = row["id"]
         already_committed = row["committed_at"] is not None
+
+        # Resolve (or create) the central title so the now-playing card can show
+        # the series/movie poster, and kick off enrichment for fresh content so
+        # the poster appears while it is still playing.
+        title_id, _created = _resolve_session_title(cur, evt)
+        if title_id:
+            cur.execute("UPDATE scrobble_sessions SET title_id = %s WHERE id = %s",
+                        (title_id, session_id))
+            _maybe_enqueue_enrich(cur, title_id)
 
         if commit and not already_committed and user_id and provider_id:
             ne = NormalizedEvent(

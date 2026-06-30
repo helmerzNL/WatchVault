@@ -99,7 +99,7 @@ def now_playing():
         "FROM scrobble_sessions s "
         "LEFT JOIN users u ON u.id = s.user_id "
         "LEFT JOIN providers p ON p.id = s.provider_id "
-        "LEFT JOIN titles t ON t.tmdb_id = s.tmdb_id "
+        "LEFT JOIN titles t ON t.id = s.title_id "
         "WHERE s.household_id = %s AND s.committed_at IS NULL AND s.state <> 'stopped' "
         "ORDER BY s.updated_at DESC",
         (user["household_id"],),

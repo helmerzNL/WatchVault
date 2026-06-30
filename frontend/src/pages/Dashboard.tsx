@@ -162,9 +162,9 @@ function NowPlaying({ scope }: { scope: string }) {
 
   return (
     <Section title={t("scrobble.nowPlaying")}>
-      <div className="card col" style={{ gap: 16 }}>
+      <div className="card col" style={{ gap: 16, marginBottom: 24 }}>
         {items.map((s: any) => {
-          const sub = s.kind === "episode" && s.season != null
+          const sub = s.kind === "series" && s.season != null
             ? `S${s.season}·E${s.episode}${s.episode_name ? " · " + s.episode_name : ""}`
             : (s.year ? String(s.year) : "");
           const meta = [s.profile, providerLabel(t, s.provider, s.provider),
