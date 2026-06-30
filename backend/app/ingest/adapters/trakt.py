@@ -32,6 +32,8 @@ from ..models import NormalizedEvent
 API_BASE = "https://api.trakt.tv"
 PAGE_LIMIT = 100
 MAX_PAGES = 25          # cap one sync at 2500 events; cursor makes the next sync incremental
+# A single title's full history is bounded by its episode count; a generous cap.
+TITLE_MAX_PAGES = 20
 
 # Device OAuth flow: the user enters a short code at trakt.tv/activate.
 # (Trakt removed support for the urn:ietf:wg:oauth:2.0:oob "PIN" redirect, which
@@ -247,6 +249,87 @@ class TraktAdapter(SourceAdapter):
             page += 1
 
         return events, {"since": max_watched.isoformat()}
+
+    def _auth_headers(self, config: dict) -> dict:
+        client_id = config.get("client_id")
+        access_token = config.get("access_token")
+        if not client_id:
+            raise ValueError("Trakt connection requires a client_id")
+        if not access_token:
+            raise ValueError(
+                "Trakt per-title sync needs an OAuth access token — authorize the "
+                "Trakt connection first.")
+        return {
+            "Content-Type": "application/json",
+            "trakt-api-version": "2",
+            "trakt-api-key": client_id,
+            "Authorization": f"Bearer {access_token}",
+        }
+
+    def _resolve_trakt_id(self, headers: dict, kind: str, tmdb_id, external_ids: dict):
+        """Find the Trakt id for a local title.
+
+        Prefers a Trakt id we already stored on the title's external_ids; falls
+        back to resolving the TMDB id via Trakt's search. Returns the Trakt
+        numeric id (or slug) as a string, or None when it can't be resolved.
+        """
+        ext = external_ids or {}
+        for key in ("trakt", "slug"):
+            if ext.get(key):
+                return str(ext[key])
+        if not tmdb_id:
+            return None
+        search_type = "show" if kind == "series" else "movie"
+        resp = requests.get(
+            f"{API_BASE}/search/tmdb/{tmdb_id}",
+            params={"type": search_type},
+            headers=headers,
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            return None
+        for hit in resp.json() or []:
+            obj = hit.get(search_type) or {}
+            ids = obj.get("ids") or {}
+            if ids.get("trakt"):
+                return str(ids["trakt"])
+        return None
+
+    def fetch_title_history(self, config: dict, title_ref: dict) -> list[NormalizedEvent]:
+        kind = title_ref.get("kind") or "movie"
+        headers = self._auth_headers(config)
+        trakt_id = self._resolve_trakt_id(
+            headers, kind, title_ref.get("tmdb_id"), title_ref.get("external_ids") or {})
+        if not trakt_id:
+            return []
+
+        item_type = "shows" if kind == "series" else "movies"
+        url = f"{API_BASE}/sync/history/{item_type}/{trakt_id}"
+        events: list[NormalizedEvent] = []
+        page = 1
+        while page <= TITLE_MAX_PAGES:
+            resp = requests.get(
+                url,
+                params={"page": page, "limit": PAGE_LIMIT, "extended": "full"},
+                headers=headers,
+                timeout=30,
+            )
+            if resp.status_code in (401, 403):
+                raise ValueError(
+                    "Trakt returned 401/403 — re-authorize the Trakt connection.")
+            resp.raise_for_status()
+            rows = resp.json() or []
+            if not rows:
+                break
+            for row in rows:
+                ev = self._to_event(row)
+                if ev is not None:
+                    events.append(ev)
+            page_count = int(resp.headers.get("X-Pagination-Page-Count", "1") or "1")
+            if page >= page_count:
+                break
+            page += 1
+        return events
 
     @staticmethod
     def _to_event(row: dict) -> NormalizedEvent | None:

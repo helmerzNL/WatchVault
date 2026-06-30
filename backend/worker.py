@@ -60,11 +60,15 @@ def _handle(job) -> dict:
         return enrich_person(payload["person_id"])
     if kind == "sync_connection":
         return _run_sync(payload["connection_id"])
+    if kind == "trakt_title_sync":
+        from app.ingest import ingest_title_from_trakt
+        return ingest_title_from_trakt(
+            payload["user_id"], payload["household_id"], payload["title_id"])
     return {"status": "unknown_kind"}
 
 
 def _run_sync(connection_id: str) -> dict:
-    from app.ingest import ingest_events, prune_connection_libraries
+    from app.ingest import ingest_events, prune_connection_libraries, enqueue_trakt_title_syncs
     from app.ingest.adapters import get_adapter
     from app.db import query_one, execute
     conn = query_one(
@@ -90,6 +94,11 @@ def _run_sync(connection_id: str) -> dict:
     spec = adapter.library_prune_spec(config)
     if spec:
         summary["pruned"] = prune_connection_libraries(connection_id, spec[0], spec[1])
+    # After a self-hosted (non-Trakt) sync, cross-check each touched series with
+    # Trakt for episodes this source didn't know about.
+    if conn["adapter"] != "trakt_api":
+        enqueue_trakt_title_syncs(str(conn["household_id"]), str(owner["id"]),
+                                  summary.get("series_title_ids"))
     execute("UPDATE source_connections SET cursor=%s, last_status=%s, last_sync_at=now() WHERE id=%s",
             (json.dumps(cursor), f"ok: +{summary.get('inserted', 0)}", connection_id))
     return summary

@@ -132,6 +132,66 @@ def test_trakt_event_mapping():
     assert ep.tmdb_id == 94997
 
 
+def test_trakt_fetch_title_history(monkeypatch):
+    from app.ingest.adapters import trakt
+    search_payload = [{"type": "show", "show": {"ids": {"trakt": 1390, "tmdb": 94997}}}]
+    history_payload = [
+        {"id": 11, "watched_at": "2025-01-15T21:30:00.000Z", "type": "episode",
+         "episode": {"season": 1, "number": 1, "title": "Pilot", "runtime": 60},
+         "show": {"title": "House of the Dragon", "year": 2022, "ids": {"tmdb": 94997}}},
+        {"id": 12, "watched_at": "2025-01-16T21:30:00.000Z", "type": "episode",
+         "episode": {"season": 1, "number": 2, "title": "Ep Two", "runtime": 60},
+         "show": {"title": "House of the Dragon", "year": 2022, "ids": {"tmdb": 94997}}},
+    ]
+    seen = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if "/search/tmdb/" in url:
+            seen["search_type"] = (params or {}).get("type")
+            return _FakeResp(payload=search_payload)
+        if "/sync/history/shows/" in url:
+            seen["history_url"] = url
+            return _FakeResp(payload=history_payload, headers={"X-Pagination-Page-Count": "1"})
+        return _FakeResp(payload=[])
+
+    monkeypatch.setattr(trakt.requests, "get", fake_get)
+    adapter = trakt.TraktAdapter()
+    config = {"client_id": "cid", "access_token": "tok"}
+    events = adapter.fetch_title_history(
+        config, {"kind": "series", "tmdb_id": 94997, "external_ids": {}})
+
+    assert seen["search_type"] == "show"
+    assert "/sync/history/shows/1390" in seen["history_url"]
+    assert len(events) == 2
+    assert {(e.season, e.episode) for e in events} == {(1, 1), (1, 2)}
+
+
+def test_trakt_fetch_title_history_uses_stored_trakt_id(monkeypatch):
+    from app.ingest.adapters import trakt
+    calls = {"search": 0}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if "/search/tmdb/" in url:
+            calls["search"] += 1
+            return _FakeResp(payload=[])
+        return _FakeResp(payload=[], headers={"X-Pagination-Page-Count": "1"})
+
+    monkeypatch.setattr(trakt.requests, "get", fake_get)
+    adapter = trakt.TraktAdapter()
+    adapter.fetch_title_history(
+        {"client_id": "c", "access_token": "t"},
+        {"kind": "movie", "tmdb_id": 1, "external_ids": {"trakt": 42}})
+    # A stored Trakt id must be used directly, without hitting search.
+    assert calls["search"] == 0
+
+
+def test_trakt_fetch_title_history_requires_token():
+    from app.ingest.adapters.trakt import TraktAdapter
+    with pytest.raises(ValueError):
+        TraktAdapter().fetch_title_history(
+            {"client_id": "c"}, {"kind": "series", "tmdb_id": 1, "external_ids": {}})
+
+
 class _FakeResp:
     def __init__(self, *, content: bytes = b"", payload=None, headers=None, status_code=200):
         self.content = content

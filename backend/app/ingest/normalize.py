@@ -93,6 +93,7 @@ def ingest_events(user_id: str, provider_id: str, source_connection_id: str | No
     duplicates = 0
     titles_created: list[str] = []
     touched_titles: set[str] = set()
+    series_titles: set[str] = set()
     meta_applied: set[str] = set()
     affected_dates: set = set()
 
@@ -107,6 +108,8 @@ def ingest_events(user_id: str, provider_id: str, source_connection_id: str | No
             if created:
                 titles_created.append(title_id)
             touched_titles.add(title_id)
+            if ev.title_kind == "series":
+                series_titles.add(title_id)
             # Capture source-native metadata once per title per ingest run.
             if ev.metadata and title_id not in meta_applied:
                 meta_applied.add(title_id)
@@ -155,6 +158,9 @@ def ingest_events(user_id: str, provider_id: str, source_connection_id: str | No
         "duplicates": duplicates,
         "titles_created": len(titles_created),
         "titles_touched": len(touched_titles),
+        # Series titles that gained at least one event this run — used to enqueue
+        # per-title Trakt cross-syncs after a self-hosted (Plex/Jellyfin) sync.
+        "series_title_ids": [str(t) for t in series_titles],
     }
 
 

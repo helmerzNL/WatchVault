@@ -4,7 +4,7 @@ import { useT, useGenre } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, BackLink } from "../components/ui";
-import { IconSparkles, IconCheck } from "../components/icons";
+import { IconSparkles, IconCheck, IconRefresh } from "../components/icons";
 import { fmtDate } from "../lib/format";
 import { useState } from "react";
 
@@ -101,6 +101,7 @@ export function TitleDetail() {
   const { data: ti, loading, error, reload } = useFetch<any>(
     () => api.get(`/search/title/${id}`, { profile: scope, lang }), [id, scope, lang]);
   const [enriching, setEnriching] = useState(false);
+  const [syncingTrakt, setSyncingTrakt] = useState(false);
 
   if (loading) return <Loading />;
   if (error) return <ErrorState error={error} retry={reload} />;
@@ -115,6 +116,17 @@ export function TitleDetail() {
       reload();
     } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
     finally { setEnriching(false); }
+  }
+
+  async function syncTrakt() {
+    setSyncingTrakt(true);
+    try {
+      const res = await api.post(`/titles/${id}/trakt-sync`, scope && scope !== "all" ? { user_id: scope } : {});
+      const added = res.inserted || 0;
+      toast(added > 0 ? t("title.traktSynced", { n: added }) : t("title.traktNothing"), "ok");
+      reload();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+    finally { setSyncingTrakt(false); }
   }
 
   return (
@@ -144,9 +156,16 @@ export function TitleDetail() {
       {ti.overview && <p className="muted" style={{ margin: "20px 0" }}>{ti.overview}</p>}
 
       {can("ingest.write") && (
-        <button className="btn-ghost btn-sm" disabled={enriching} onClick={enrich} style={{ marginBottom: 20 }}>
-          <IconSparkles width={16} height={16} /> {enriching ? t("title.enriching") : t("title.enrichTmdb")}
-        </button>
+        <div className="row wrap" style={{ gap: 10, marginBottom: 20 }}>
+          <button className="btn-ghost btn-sm" disabled={enriching} onClick={enrich}>
+            <IconSparkles width={16} height={16} /> {enriching ? t("title.enriching") : t("title.enrichTmdb")}
+          </button>
+          {ti.trakt_configured && (
+            <button className="btn-ghost btn-sm" disabled={syncingTrakt} onClick={syncTrakt}>
+              <IconRefresh width={16} height={16} /> {syncingTrakt ? t("title.syncingTrakt") : t("title.syncTrakt")}
+            </button>
+          )}
+        </div>
       )}
 
       {ti.kind === "series" && ti.seasons?.length > 0 && <Seasons seasons={ti.seasons} />}

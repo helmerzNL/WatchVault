@@ -25,6 +25,18 @@ class SourceAdapter:
     def fetch_history(self, config: dict, cursor: dict) -> tuple[list[NormalizedEvent], dict]:
         raise NotImplementedError(f"{self.id} does not support API sync")
 
+    def fetch_title_history(self, config: dict, title_ref: dict) -> list[NormalizedEvent]:
+        """Fetch the full watch history for a single title from this source.
+
+        ``title_ref`` carries what we know about the local title — at minimum
+        ``{"kind": 'movie'|'series', "tmdb_id": int|None, "external_ids": dict}`` —
+        so the adapter can resolve it to its own id and return every watch event
+        for just that title. Used for per-title cross-sync (e.g. enriching a Plex
+        series with episodes only known to Trakt). Adapters that can't scope a
+        fetch to one title keep the default (unsupported).
+        """
+        raise NotImplementedError(f"{self.id} does not support per-title history")
+
     def list_libraries(self, config: dict) -> list[dict]:
         """Discover selectable libraries for this connection.
 

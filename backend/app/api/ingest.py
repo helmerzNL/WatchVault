@@ -7,7 +7,8 @@ from flask import Blueprint, jsonify, request
 
 from ..db import execute, query_all, query_one
 from ..ingest import (ingest_events, prune_connection_libraries,
-                      clear_connection_events, reset_all_data)
+                      clear_connection_events, reset_all_data,
+                      ingest_title_from_trakt, enqueue_trakt_title_syncs)
 from ..ingest.adapters import get_adapter
 from ..auth.sessions import current_user, require_perm
 from ._common import household_user_ids
@@ -364,11 +365,39 @@ def sync_connection(conn_id: str):
     spec = adapter.library_prune_spec(config)
     if spec:
         summary["pruned"] = prune_connection_libraries(conn_id, spec[0], spec[1])
+    # After a self-hosted (non-Trakt) sync, cross-check each touched series with
+    # Trakt for episodes this source didn't know about.
+    if conn["adapter"] != "trakt_api":
+        enqueue_trakt_title_syncs(str(user["household_id"]), target,
+                                  summary.get("series_title_ids"))
     execute(
         "UPDATE source_connections SET cursor = %s, last_status = %s, last_sync_at = now() WHERE id = %s",
         (json.dumps(new_cursor), f"ok: +{summary['inserted']}", conn_id),
     )
     return jsonify({"ok": True, "fetched": len(events), **summary})
+
+
+@bp.post("/titles/<title_id>/trakt-sync")
+@require_perm("ingest.write")
+def trakt_sync_title(title_id: str):
+    """Pull a single title's full Trakt watch history and ingest it.
+
+    Attributed to the active profile (the clicking user, or ``user_id`` in the
+    body). Used by the per-title "Sync with Trakt" button; dedup means only
+    episodes not already known locally are added."""
+    user = current_user()
+    target = _target_user(user)
+    if not target:
+        return jsonify({"error": "invalid target user"}), 400
+    try:
+        result = ingest_title_from_trakt(target, str(user["household_id"]), title_id)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": f"trakt sync failed: {exc}"}), 400
+    if result.get("status") == "no_trakt":
+        return jsonify({"error": "no authorized Trakt connection"}), 400
+    if result.get("status") == "no_title":
+        return jsonify({"error": "title not found"}), 404
+    return jsonify({"ok": True, **result})
 
 
 @bp.post("/ingest/rebuild-agg")

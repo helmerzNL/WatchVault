@@ -5,8 +5,9 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from ..db import query_all, query_one
-from ..auth.sessions import require_perm
+from ..auth.sessions import require_perm, current_user
 from ._common import EFF_SECONDS, poster_url, scope_user_ids
+from ..ingest import trakt_configured
 
 bp = Blueprint("search", __name__, url_prefix="/api/search")
 
@@ -139,6 +140,10 @@ def title_detail(title_id: str):
 
     overviews = t.get("overviews") or {}
     overview = overviews.get(lang) or t["overview"] or overviews.get("en")
+    try:
+        trakt_ok = trakt_configured(str(current_user()["household_id"]))
+    except Exception:  # noqa: BLE001 — never break title detail over this hint
+        trakt_ok = False
     return jsonify({
         "id": str(t["id"]), "title": t["title"], "kind": t["kind"], "year": t["year"],
         "overview": overview, "overviews": overviews,
@@ -146,6 +151,7 @@ def title_detail(title_id: str):
         "backdrop": poster_url(t["backdrop_path"], "w780"),
         "runtime_minutes": t["runtime_minutes"], "tmdb_id": t["tmdb_id"],
         "external_ids": t["external_ids"],
+        "trakt_configured": trakt_ok,
         "genres": [g["name"] for g in genres],
         "seasons": seasons,
         "cast": [{"id": str(c["id"]), "name": c["name"], "character": c["character"],
