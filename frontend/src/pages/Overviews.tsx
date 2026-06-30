@@ -118,8 +118,13 @@ function DailyHeatmap({ scope }: { scope: string }) {
 
   return (
     <Section title={t("overviews.dailyActivity")}
-      right={<Seg value={String(year)} onChange={(v) => setYear(Number(v))}
-        options={years.map((y) => ({ value: String(y), label: String(y) }))} />}>
+      right={years.length > 3
+        ? <select value={String(year)} onChange={(e) => setYear(Number(e.target.value))}
+            aria-label={t("overviews.dailyActivity")} style={{ width: "auto", minHeight: 0 }}>
+            {years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+          </select>
+        : <Seg value={String(year)} onChange={(v) => setYear(Number(v))}
+            options={years.map((y) => ({ value: String(y), label: String(y) }))} />}>
       <div className="card" style={{ overflowX: "auto" }}>
         {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
           <Heatmap days={data || []} year={year} selected={selected} onSelect={setSelected} />}

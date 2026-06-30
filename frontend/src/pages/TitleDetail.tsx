@@ -6,7 +6,7 @@ import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, BackLink } from "../components/ui";
 import { IconSparkles, IconCheck, IconRefresh, IconPlus, IconClose } from "../components/icons";
 import { fmtDate, todayLocalKey, localDateKey } from "../lib/format";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const today = () => todayLocalKey();
 const yesterday = () => {
@@ -24,33 +24,54 @@ const yesterday = () => {
 // Falls back to a name chip when a network has no logo.
 function NetworkLogo({ logo, name }: { logo?: string; name: string }) {
   const [tone, setTone] = useState<"dark" | "light">("dark");
-  function detect(e: any) {
-    const img = e.currentTarget as HTMLImageElement;
-    try {
-      const c = document.createElement("canvas");
-      const w = (c.width = 28), h = (c.height = 28);
-      const ctx = c.getContext("2d", { willReadFrequently: true });
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0, w, h);
-      const { data } = ctx.getImageData(0, 0, w, h);
-      let lum = 0, weight = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        const a = data[i + 3] / 255;
-        if (a < 0.12) continue; // ignore (near-)transparent pixels
-        lum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) * a;
-        weight += a;
+  const [failed, setFailed] = useState(false);
+
+  // Brightness sampling is best-effort and kept OFF the visible <img>: reading
+  // pixels needs a CORS-clean image, but the service worker caches TMDB images
+  // as opaque responses (CacheFirst), which would taint the canvas — and forcing
+  // crossOrigin on the visible image makes it fail to render entirely. So we
+  // probe a separate off-DOM image for the tone and silently keep the default
+  // when reading is blocked.
+  useEffect(() => {
+    setFailed(false);
+    if (!logo) return;
+    let cancelled = false;
+    const probe = new Image();
+    probe.crossOrigin = "anonymous";
+    probe.onload = () => {
+      if (cancelled) return;
+      try {
+        const c = document.createElement("canvas");
+        const w = (c.width = 28), h = (c.height = 28);
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return;
+        ctx.drawImage(probe, 0, 0, w, h);
+        const { data } = ctx.getImageData(0, 0, w, h);
+        let lum = 0, weight = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const a = data[i + 3] / 255;
+          if (a < 0.12) continue; // ignore (near-)transparent pixels
+          lum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) * a;
+          weight += a;
+        }
+        if (weight > 0) setTone(lum / weight < 130 ? "dark" : "light");
+      } catch {
+        /* tainted/opaque canvas — keep the default tone */
       }
-      if (weight > 0) setTone(lum / weight < 130 ? "dark" : "light");
-    } catch {
-      /* tainted/unsupported canvas — keep the default light plate */
-    }
-  }
-  if (!logo) {
+    };
+    probe.onerror = () => { /* sampling blocked — keep the default tone */ };
+    probe.src = logo;
+    return () => { cancelled = true; };
+  }, [logo]);
+
+  if (!logo || failed) {
     return <span className="chip" style={{ minHeight: 0, padding: "2px 10px" }}>{name}</span>;
   }
+  // The visible logo carries no crossOrigin, so it loads exactly like every other
+  // poster (including via the SW cache); onError degrades to a readable name chip.
   return (
     <span className={`network-logo network-logo--${tone}`} title={name}>
-      <img src={logo} crossOrigin="anonymous" alt={name} onLoad={detect} />
+      <img src={logo} alt={name} onError={() => setFailed(true)} />
     </span>
   );
 }
