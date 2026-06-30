@@ -356,6 +356,7 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 }
 .menu-row:hover { background: var(--accent-subtle); }
 .menu-row[data-active="true"] { background: var(--accent-subtle); color: var(--accent); }
+.menu-divider { height: 1px; background: var(--hairline); margin: 6px 8px; }
 
 /* Portal dropdown (Language / Profile pickers) — rendered on <body> so it
    escapes the top bar's backdrop-filter containing block (fixes the iOS

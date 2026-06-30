@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { LanguagePicker } from "./LanguagePicker";
@@ -11,6 +11,7 @@ import {
 function ProfileSwitcher() {
   const { profiles, scope, setScope, user } = useApp();
   const { t } = useT();
+  const navigate = useNavigate();
   const current = scope === "all" ? null : profiles.find((p) => p.id === scope);
   const label = current ? current.display_name : t("common.household");
 
@@ -50,6 +51,15 @@ function ProfileSwitcher() {
               </span>
             </button>
           ))}
+          <div className="menu-divider" />
+          <button className="menu-row" onClick={() => { navigate("/settings"); close(); }}>
+            <span className="avatar" style={{ width: 30, height: 30, background: "var(--accent-subtle)", color: "var(--accent)" }}>
+              <IconSettings width={18} height={18} />
+            </span>
+            <span className="col" style={{ gap: 0, alignItems: "flex-start" }}>
+              <strong>{t("nav.settings")}</strong>
+            </span>
+          </button>
         </>
       )}
     </Dropdown>
@@ -62,7 +72,6 @@ const NAV = [
   { to: "/search", key: "nav.search", icon: IconSearch },
   { to: "/imports", key: "nav.imports", icon: IconImport },
   { to: "/profiles", key: "nav.profiles", icon: IconUsers },
-  { to: "/settings", key: "nav.settings", icon: IconSettings },
 ];
 
 export function Layout() {
@@ -91,7 +100,7 @@ export function Layout() {
       </main>
 
       <nav className="tabbar glass">
-        {NAV.filter((n) => n.to !== "/settings").map((n) => {
+        {NAV.map((n) => {
           const Icon = n.icon;
           return (
             <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? "active" : "")}>
