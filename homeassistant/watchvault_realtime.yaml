@@ -24,7 +24,7 @@ blueprint:
     endpoint:
       name: WatchVault endpoint
       description: Full URL of the generic scrobble endpoint.
-      default: https://watch.vaultstack.eu/api/scrobble/generic
+      default: https://watchvault.tld/api/scrobble/generic
       selector:
         text: {}
     token:
