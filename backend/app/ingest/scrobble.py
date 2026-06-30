@@ -27,6 +27,7 @@ _PLEX_EVENTS = {
 }
 _STATE_BY_EVENT = {
     "play": "playing", "resume": "playing", "scrobble": "playing",
+    "update": "playing",   # periodic real-time progress tick (no reset/re-commit)
     "pause": "paused", "stop": "stopped",
 }
 DEFAULT_THRESHOLD = 90
@@ -36,7 +37,7 @@ DEFAULT_THRESHOLD = 90
 class ScrobbleEvent:
     """One push from a player, normalized across Plex / HA / AppleTV."""
     source: str                          # 'plex'|'homeassistant'|'appletv'|'generic'
-    event: str                           # 'play'|'pause'|'resume'|'stop'|'scrobble'
+    event: str                           # 'play'|'pause'|'resume'|'stop'|'scrobble'|'update'
     raw_title: str
     dedup_key: str
     account_label: str = ""
@@ -139,6 +140,10 @@ def parse_generic_payload(body: dict) -> Optional[ScrobbleEvent]:
     Shape: {event, source?, account?, platform?, title, kind?, year?, season?,
     episode?, episode_name?, tmdb_id?, progress_percent?, position_seconds?,
     duration_seconds?, dedup_key?}
+
+    Accepted events: 'play', 'resume', 'pause', 'stop', 'scrobble', 'update'.
+    'update' is a periodic real-time progress tick that refreshes the now-playing
+    session without resetting it (unlike 'play'/'resume').
     """
     title = (body.get("title") or "").strip()
     if not title:

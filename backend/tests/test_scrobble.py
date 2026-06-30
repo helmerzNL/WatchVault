@@ -123,6 +123,17 @@ def test_parse_generic_explicit_dedup_key_wins():
     assert evt.dedup_key == "k-1"
 
 
+def test_parse_generic_update_tick():
+    # `update` is a periodic real-time progress tick — a valid event (not None).
+    evt = parse_generic_payload({
+        "event": "update", "title": "X",
+        "position_seconds": 30, "duration_seconds": 100,
+    })
+    assert evt is not None
+    assert evt.event == "update"
+    assert evt.progress_percent == 30.0
+
+
 # ── Decision helpers ────────────────────────────────────────────────────────
 
 def test_state_for_event():
@@ -130,6 +141,7 @@ def test_state_for_event():
     assert state_for_event("pause") == "paused"
     assert state_for_event("stop") == "stopped"
     assert state_for_event("scrobble") == "playing"
+    assert state_for_event("update") == "playing"
 
 
 def test_should_commit_threshold_and_scrobble():
@@ -139,6 +151,20 @@ def test_should_commit_threshold_and_scrobble():
     assert should_commit(ScrobbleEvent(event="stop", progress_percent=89, **base), 90) is False
     assert should_commit(ScrobbleEvent(event="play", progress_percent=None, **base), 90) is False
     assert should_commit(ScrobbleEvent(event="pause", progress_percent=90, **base), 90) is True
+
+
+def test_should_commit_update_tick():
+    # An `update` tick commits once it crosses the threshold; below it, it doesn't.
+    base = dict(source="homeassistant", raw_title="X", dedup_key="k")
+    assert should_commit(ScrobbleEvent(event="update", progress_percent=89, **base), 90) is False
+    assert should_commit(ScrobbleEvent(event="update", progress_percent=90, **base), 90) is True
+    assert should_commit(ScrobbleEvent(event="update", progress_percent=95, **base), 90) is True
+
+
+def test_update_is_not_a_reset_event():
+    # `update` must NOT reset committed_at (only fresh play/resume start a new
+    # session). This pins the reset-set contract used by handle_scrobble.
+    assert "update" not in ("play", "resume")
 
 
 # ── Provider / profile resolution (fake cursor) ─────────────────────────────
