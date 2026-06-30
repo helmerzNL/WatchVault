@@ -285,6 +285,7 @@ const fr = {
   "attrib.history": "Historique",
   "attrib.moved": "{n} déplacés",
   "attrib.reason.override": "Remplacement manuel",
+  "attrib.reason.real_sync_matched": "Plateforme réelle reprise",
   "attrib.reason.network_matched": "Réseau reconnu",
   "attrib.reason.network_unmapped": "Réseau absent de votre liste",
   "attrib.reason.movie_no_networks": "Film (TMDB sans réseau)",

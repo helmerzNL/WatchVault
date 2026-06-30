@@ -84,18 +84,30 @@ MOVABLE_SOURCES = ("trakt", "manual")
 
 
 def _desired_provider(source: str | None, override_id: str | None,
-                      network_id: str | None, manual_id: str | None) -> str | None:
+                      network_id: str | None, manual_id: str | None,
+                      real_provider_id: str | None = None) -> str | None:
     """Target provider id for one event, or ``None`` if it must not be moved.
 
-    An override wins for any movable event. Otherwise a Trakt event resolves to
-    its TMDB network and a manual event stays on the ``manual`` provider."""
+    Precedence for a movable event:
+      1. a manual platform override wins for both Trakt and manual events;
+      2. a manual event otherwise stays on the ``manual`` provider;
+      3. a Trakt event adopts the title's *established real platform* — the
+         provider of an existing real digital sync (Plex/Jellyfin/Netflix/generic
+         import) — so Trakt never overwrites a platform that a real service has
+         already set, and follows it when a later sync establishes/updates it;
+      4. only when there is no real platform does a Trakt event fall back to its
+         TMDB network (or the generic ``Other`` provider).
+    """
     if source not in MOVABLE_SOURCES:
         return None
     if override_id:
         return override_id
     if source == "manual":
         return manual_id
-    return network_id  # trakt
+    # trakt: adopt an already-established real platform before guessing a network.
+    if real_provider_id:
+        return real_provider_id
+    return network_id
 
 
 def _provider_id_by_key(cur, key: str) -> str | None:
@@ -104,13 +116,44 @@ def _provider_id_by_key(cur, key: str) -> str | None:
     return str(row["id"]) if row else None
 
 
+def _provider_key_by_id(cur, provider_id: str) -> str | None:
+    cur.execute("SELECT key FROM providers WHERE id = %s", (provider_id,))
+    row = cur.fetchone()
+    return row["key"] if row else None
+
+
+def _established_real_provider(cur, title_id: str) -> str | None:
+    """Return the provider id of the title's *established real platform*, or
+    ``None`` when no real digital-sync event exists.
+
+    A title's real platform is whichever provider a real (non-movable) sync put
+    its watches on. When several real platforms are present (e.g. one season
+    imported via Netflix CSV and another synced from Plex), the most recently
+    *watched* real event wins — matching "a newer real sync updates the
+    platform". Trakt events then adopt this provider instead of guessing a
+    network."""
+    placeholders = ", ".join(["%s"] * len(MOVABLE_SOURCES))
+    cur.execute(
+        "SELECT provider_id FROM watch_events "
+        "WHERE title_id = %s AND deleted_at IS NULL "
+        f"  AND COALESCE(raw->>'source', '') NOT IN ({placeholders}) "
+        "ORDER BY watched_at DESC, created_at DESC "
+        "LIMIT 1",
+        (title_id, *MOVABLE_SOURCES))
+    row = cur.fetchone()
+    return str(row["provider_id"]) if row else None
+
+
 def _attribution_reason(title: dict, override_id: str | None,
-                        networks: list[dict], network_key: str | None) -> str:
+                        networks: list[dict], network_key: str | None,
+                        real_provider_key: str | None = None) -> str:
     """Explain *why* a title's soft events land where they do — for the
     attribution log. Mirrors the resolution order in
     :func:`reattribute_title_events`."""
     if override_id:
         return "override"
+    if real_provider_key:
+        return "real_sync_matched"
     if network_key and network_key != "generic":
         return "network_matched"
     # Fell through to the generic ("Other") provider — classify the cause.
@@ -216,15 +259,18 @@ def reattribute_title_events(title_id: str) -> dict:
     affected days.
 
     Target per event (see :func:`_desired_provider`): a title-level platform
-    override wins; otherwise Trakt events go to their TMDB network (or the generic
-    provider) and manual events stay on the ``manual`` provider. Real digital
-    syncs (Plex/Jellyfin/Netflix CSV/generic imports) are never touched.
+    override wins; otherwise a Trakt event adopts the title's *established real
+    platform* (the provider of an existing Plex/Jellyfin/Netflix/generic sync)
+    when one exists, and only falls back to its TMDB network (or the generic
+    provider) when the title has no real platform yet. Manual events stay on the
+    ``manual`` provider. Real digital syncs are never moved — they *are* the
+    service.
 
     Soft events are selected by ``raw->>'source'`` rather than their current
     provider, so events already moved in an earlier pass are revisited and
-    re-targeted (e.g. when an override is set or cleared, or once
-    ``metadata.networks`` becomes available). Events already on their desired
-    provider are skipped, making this idempotent.
+    re-targeted (e.g. when an override is set or cleared, once a real sync
+    establishes a platform, or once ``metadata.networks`` becomes available).
+    Events already on their desired provider are skipped, making this idempotent.
 
     Returns a status dict with the number of events ``moved`` and ``collapsed``
     (tombstoned because the same watch already exists on the target provider)."""
@@ -234,27 +280,36 @@ def reattribute_title_events(title_id: str) -> dict:
             "  platform_override_provider_id "
             "FROM titles WHERE id = %s", (title_id,))
         title = cur.fetchone()
-    if not title:
-        return {"status": "no_title"}
+        if not title:
+            return {"status": "no_title"}
+        override_id = title["platform_override_provider_id"]
+        override_id = str(override_id) if override_id else None
+        # A Trakt event adopts an already-established real platform before any
+        # network guess. Computed up-front so we can also skip the (costly) TMDB
+        # network fetch when an override or a real platform already decides it.
+        real_provider_id = None if override_id else _established_real_provider(cur, title_id)
 
-    override_id = title["platform_override_provider_id"]
-    override_id = str(override_id) if override_id else None
-    # The TMDB network is only needed when there is no override and the title has
-    # Trakt events; fetching it lazily here keeps backfills cheap for overrides.
-    networks = [] if override_id else _ensure_networks(dict(title))
+    # The TMDB network is only needed when there is no override, no established
+    # real platform, and the title has Trakt events; fetching it lazily here
+    # keeps backfills cheap.
+    networks = [] if (override_id or real_provider_id) else _ensure_networks(dict(title))
 
     with connection() as conn, conn.cursor() as cur:
         network_id, network_key = resolve_network_provider(cur, networks)
         manual_id = _provider_id_by_key(cur, "manual")
+        real_provider_key = _provider_key_by_id(cur, real_provider_id) if real_provider_id else None
         primary_key = None
         if override_id:
             cur.execute("SELECT key FROM providers WHERE id = %s", (override_id,))
             r = cur.fetchone()
             primary_key = r["key"] if r else None
+        elif real_provider_id:
+            primary_key = real_provider_key
         else:
             primary_key = network_key
 
-        reason = _attribution_reason(dict(title), override_id, networks, network_key)
+        reason = _attribution_reason(dict(title), override_id, networks,
+                                     network_key, real_provider_key)
 
         placeholders = ", ".join(["%s"] * len(MOVABLE_SOURCES))
         cur.execute(
@@ -277,7 +332,8 @@ def reattribute_title_events(title_id: str) -> dict:
 
         moved = collapsed = 0
         for r in rows:
-            desired = _desired_provider(r["source"], override_id, network_id, manual_id)
+            desired = _desired_provider(r["source"], override_id, network_id,
+                                        manual_id, real_provider_id)
             if not desired or str(r["provider_id"]) == desired:
                 continue
             uid = str(r["user_id"])
@@ -319,14 +375,21 @@ def reattribute_all() -> dict:
     Used as a one-time job on deploy so existing history is moved off "Trakt"
     onto the real services (and any platform overrides are applied) without
     waiting for each title to be re-enriched or re-synced. Titles are found via
-    their Trakt events (enriched, so a network is resolvable) or because they
-    carry a platform override (whose manual/Trakt events must follow it)."""
+    their Trakt events when the title is either enriched (so a network is
+    resolvable) *or* already has a real digital-sync event the Trakt events can
+    adopt, or because the title carries a platform override (whose manual/Trakt
+    events must follow it)."""
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT DISTINCT we.title_id FROM watch_events we "
             "JOIN titles t ON t.id = we.title_id "
             "WHERE we.deleted_at IS NULL AND ("
-            "    (we.raw->>'source' = 'trakt' AND t.enriched_at IS NOT NULL) "
+            "    (we.raw->>'source' = 'trakt' AND ("
+            "        t.enriched_at IS NOT NULL "
+            "        OR EXISTS (SELECT 1 FROM watch_events r "
+            "                   WHERE r.title_id = t.id AND r.deleted_at IS NULL "
+            "                     AND COALESCE(r.raw->>'source','') "
+            "                         NOT IN ('trakt','manual')))) "
             "    OR t.platform_override_provider_id IS NOT NULL)")
         title_ids = [str(r["title_id"]) for r in cur.fetchall()]
 

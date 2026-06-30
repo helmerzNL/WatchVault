@@ -285,6 +285,7 @@ const es = {
   "attrib.history": "Historial",
   "attrib.moved": "{n} movidos",
   "attrib.reason.override": "Anulación manual",
+  "attrib.reason.real_sync_matched": "Plataforma real adoptada",
   "attrib.reason.network_matched": "Red reconocida",
   "attrib.reason.network_unmapped": "Red no está en tu lista",
   "attrib.reason.movie_no_networks": "Película (TMDB no tiene red)",

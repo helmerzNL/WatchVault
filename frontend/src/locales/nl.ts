@@ -285,6 +285,7 @@ const nl = {
   "attrib.history": "Geschiedenis",
   "attrib.moved": "{n} verplaatst",
   "attrib.reason.override": "Handmatige overschrijving",
+  "attrib.reason.real_sync_matched": "Echt platform overgenomen",
   "attrib.reason.network_matched": "Netwerk herkend",
   "attrib.reason.network_unmapped": "Netwerk niet in jouw lijst",
   "attrib.reason.movie_no_networks": "Film (TMDB heeft geen netwerk)",

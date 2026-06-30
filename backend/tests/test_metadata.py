@@ -310,10 +310,58 @@ def test_desired_provider_override_and_sources():
         assert _desired_provider(src, "ovr", "net", "man") is None
 
 
+def test_desired_provider_adopts_established_real_platform():
+    from app.networks import _desired_provider
+    # A Trakt event adopts an already-established real platform ahead of the
+    # network guess, so Trakt never overwrites a real sync's platform.
+    assert _desired_provider("trakt", None, "net", "man", "real") == "real"
+    # An override still wins over the real platform.
+    assert _desired_provider("trakt", "ovr", "net", "man", "real") == "ovr"
+    # Without a real platform, Trakt still falls back to its TMDB network.
+    assert _desired_provider("trakt", None, "net", "man", None) == "net"
+    # Manual events are unaffected by the established real platform.
+    assert _desired_provider("manual", None, "net", "man", "real") == "man"
+    # Real syncs are still never moved.
+    assert _desired_provider("plex", None, "net", "man", "real") is None
+
+
+def test_established_real_provider_picks_most_recent(monkeypatch):
+    from app.networks import _established_real_provider
+
+    class _FakeCur:
+        def __init__(self, row):
+            self._row = row
+            self.sql = None
+            self.params = None
+
+        def execute(self, sql, params=None):
+            self.sql = sql
+            self.params = params
+
+        def fetchone(self):
+            return self._row
+
+    # Returns the provider id of the most recent real event.
+    cur = _FakeCur({"provider_id": "plex-id"})
+    assert _established_real_provider(cur, "t1") == "plex-id"
+    # The query must exclude the movable (soft) sources and order by recency.
+    assert "NOT IN" in cur.sql
+    assert "watched_at DESC" in cur.sql
+    assert cur.params[0] == "t1"
+    # No real event -> None.
+    assert _established_real_provider(_FakeCur(None), "t1") is None
+
+
 def test_attribution_reason_classification():
     from app.networks import _attribution_reason
     # An override always wins, regardless of networks.
     assert _attribution_reason({"kind": "series"}, "ovr", [], "generic") == "override"
+    # An established real platform wins over a network guess (but not override).
+    assert _attribution_reason(
+        {"kind": "series", "tmdb_id": 1, "metadata": {}, "enriched_at": None},
+        None, [], "generic", "plex") == "real_sync_matched"
+    assert _attribution_reason(
+        {"kind": "series"}, "ovr", [], "generic", "plex") == "override"
     # A network that maps to a real provider.
     assert _attribution_reason(
         {"kind": "series", "tmdb_id": 1, "metadata": {"networks": [{"name": "Netflix"}]},

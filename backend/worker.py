@@ -98,10 +98,14 @@ def _run_sync(connection_id: str) -> dict:
     if spec:
         summary["pruned"] = prune_connection_libraries(connection_id, spec[0], spec[1])
     # After a self-hosted (non-Trakt) sync, cross-check each touched series with
-    # Trakt for episodes this source didn't know about.
+    # Trakt for episodes this source didn't know about, and re-attribute existing
+    # Trakt events so they adopt the platform this real sync just established
+    # (films included — the cross-sync only covers series).
     if conn["adapter"] != "trakt_api":
         enqueue_trakt_title_syncs(str(conn["household_id"]), str(owner["id"]),
                                   summary.get("series_title_ids"))
+        if summary.get("inserted"):
+            _enqueue_reattribute_trakt_all()
     elif summary.get("inserted"):
         # A bulk Trakt sync may have added events to already-enriched titles;
         # re-attribute them to their real streaming service.

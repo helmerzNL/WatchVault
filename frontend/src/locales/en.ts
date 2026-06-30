@@ -285,6 +285,7 @@ const en = {
   "attrib.history": "History",
   "attrib.moved": "{n} moved",
   "attrib.reason.override": "Manual override",
+  "attrib.reason.real_sync_matched": "Adopted real platform",
   "attrib.reason.network_matched": "Network recognised",
   "attrib.reason.network_unmapped": "Network not in your list",
   "attrib.reason.movie_no_networks": "Film (TMDB has no network)",

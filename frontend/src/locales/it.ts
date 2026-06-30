@@ -285,6 +285,7 @@ const it = {
   "attrib.history": "Cronologia",
   "attrib.moved": "{n} spostati",
   "attrib.reason.override": "Override manuale",
+  "attrib.reason.real_sync_matched": "Piattaforma reale adottata",
   "attrib.reason.network_matched": "Rete riconosciuta",
   "attrib.reason.network_unmapped": "Rete non nella tua lista",
   "attrib.reason.movie_no_networks": "Film (TMDB senza rete)",

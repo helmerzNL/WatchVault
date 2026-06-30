@@ -285,6 +285,7 @@ const de = {
   "attrib.history": "Verlauf",
   "attrib.moved": "{n} verschoben",
   "attrib.reason.override": "Manuelle Überschreibung",
+  "attrib.reason.real_sync_matched": "Echte Plattform übernommen",
   "attrib.reason.network_matched": "Netzwerk erkannt",
   "attrib.reason.network_unmapped": "Netzwerk nicht in deiner Liste",
   "attrib.reason.movie_no_networks": "Film (TMDB hat kein Netzwerk)",
