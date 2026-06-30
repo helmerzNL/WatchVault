@@ -138,6 +138,16 @@ def title_detail(title_id: str):
 
     seasons = _series_seasons(title_id, t, ids) if t["kind"] == "series" else []
 
+    # For a series, the per-episode rows now carry their own watch dates, so the
+    # standalone history list below would just duplicate them. Keep only events
+    # that can't be matched to a listed episode (e.g. Netflix rows with only an
+    # episode name and no number) so nothing is lost; everything else is hidden.
+    if t["kind"] == "series":
+        known = {(s["season"], ep["episode"]) for s in seasons
+                 for ep in s["episodes"] if ep["episode"] is not None}
+        events = [e for e in events
+                  if e["episode"] is None or (e["season"] or 0, e["episode"]) not in known]
+
     overviews = t.get("overviews") or {}
     overview = overviews.get(lang) or t["overview"] or overviews.get("en")
     try:
@@ -180,29 +190,31 @@ def _series_seasons(title_id: str, t: dict, ids: list[str]) -> list[dict]:
         _queue_episode_backfill(title_id)
 
     watched = query_all(
-        "SELECT episode_id, season, episode, max(watched_date) AS last "
+        "SELECT episode_id, season, episode, "
+        "  array_agg(DISTINCT watched_date ORDER BY watched_date DESC) AS dates "
         "FROM watch_events WHERE title_id = %s AND user_id = ANY(%s::uuid[]) "
         "AND deleted_at IS NULL AND item_kind = 'episode' "
         "GROUP BY episode_id, season, episode", (title_id, ids))
-    watched_ids: dict[str, str] = {}
-    watched_se: dict[tuple, str] = {}
+    watched_ids: dict[str, list] = {}
+    watched_se: dict[tuple, list] = {}
     for w in watched:
-        last = w["last"].isoformat() if w["last"] else None
+        dates = [d.isoformat() for d in (w["dates"] or []) if d]
         if w["episode_id"]:
-            watched_ids[str(w["episode_id"])] = last
+            watched_ids[str(w["episode_id"])] = dates
         if w["episode"] is not None:
-            watched_se[(w["season"] or 0, w["episode"])] = last
+            watched_se[(w["season"] or 0, w["episode"])] = dates
 
     by_season: dict[int, list] = {}
     for e in eps:
-        last = watched_ids.get(str(e["id"])) or watched_se.get((e["season"] or 0, e["episode"]))
+        dates = watched_ids.get(str(e["id"])) or watched_se.get((e["season"] or 0, e["episode"])) or []
         by_season.setdefault(e["season"] or 0, []).append({
             "id": str(e["id"]), "episode": e["episode"], "name": e["name"],
             "overview": e["overview"],
             "air_date": e["air_date"].isoformat() if e["air_date"] else None,
             "runtime_minutes": e["runtime_minutes"],
             "still": poster_url(e["still_path"], "w300"),
-            "watched": last is not None, "last_watched": last,
+            "watched": len(dates) > 0, "last_watched": dates[0] if dates else None,
+            "watch_dates": dates,
         })
 
     seasons = []

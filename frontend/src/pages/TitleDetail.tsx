@@ -28,6 +28,7 @@ function EpisodeRow({ ep }: { ep: any }) {
   const meta: string[] = [];
   if (ep.air_date) meta.push(fmtDate(ep.air_date));
   if (ep.runtime_minutes) meta.push(t("title.min", { n: ep.runtime_minutes }));
+  const dates: string[] = ep.watch_dates?.length ? ep.watch_dates : (ep.last_watched ? [ep.last_watched] : []);
   return (
     <div className={`episode-row ${ep.watched ? "is-watched" : ""}`}>
       <div className="episode-still">
@@ -42,8 +43,8 @@ function EpisodeRow({ ep }: { ep: any }) {
         {meta.length > 0 && <span className="caption">{meta.join(" · ")}</span>}
         {ep.overview && <p className="episode-overview">{ep.overview}</p>}
         <span className={`episode-status ${ep.watched ? "on" : ""}`}>
-          {ep.watched
-            ? (ep.last_watched ? t("title.watchedOn", { date: fmtDate(ep.last_watched) }) : t("title.watched"))
+          {dates.length > 0
+            ? t("title.watchedOn", { date: dates.map((d) => fmtDate(d)).join(" · ") })
             : t("title.notWatched")}
         </span>
       </div>
@@ -188,22 +189,26 @@ export function TitleDetail() {
         </>
       )}
 
-      <h2 className="title" style={{ margin: "28px 0 14px" }}>{t("title.watchHistory")}</h2>
-      <div className="card">
-        {ti.events?.length ? ti.events.map((e: any, i: number) => (
-          <div key={i} className="list-row">
-            <div className="col" style={{ flex: 1, gap: 2 }}>
-              <strong>
-                {e.kind === "episode" && e.season != null
-                  ? `S${e.season}${e.episode != null ? `E${e.episode}` : ""}${e.raw_title ? " · " + e.raw_title : ""}`
-                  : e.raw_title || ti.title}
-              </strong>
-              <span className="caption">{e.platform} · {e.who}</span>
-            </div>
-            <span className="caption">{fmtDate(e.date)}</span>
+      {ti.events?.length > 0 && (
+        <>
+          <h2 className="title" style={{ margin: "28px 0 14px" }}>{t("title.watchHistory")}</h2>
+          <div className="card">
+            {ti.events.map((e: any, i: number) => (
+              <div key={i} className="list-row">
+                <div className="col" style={{ flex: 1, gap: 2 }}>
+                  <strong>
+                    {e.kind === "episode" && e.season != null
+                      ? `S${e.season}${e.episode != null ? `E${e.episode}` : ""}${e.raw_title ? " · " + e.raw_title : ""}`
+                      : e.raw_title || ti.title}
+                  </strong>
+                  <span className="caption">{e.platform} · {e.who}</span>
+                </div>
+                <span className="caption">{fmtDate(e.date)}</span>
+              </div>
+            ))}
           </div>
-        )) : <p className="muted">{t("title.noEvents")}</p>}
-      </div>
+        </>
+      )}
     </>
   );
 }
