@@ -3,7 +3,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api";
-import { applyBrandIcons } from "./branding";
+import { applyBrandIcons, applyBrandManifest } from "./branding";
 
 export interface User {
   id: string;
@@ -65,6 +65,7 @@ function applyTheme(prefs: Prefs) {
   if (prefs.accent) {
     root.style.setProperty("--accent", prefs.accent);
     applyBrandIcons(prefs.accent);
+    applyBrandManifest(prefs.accent);
   }
 }
 
