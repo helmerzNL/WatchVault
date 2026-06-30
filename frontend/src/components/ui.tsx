@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { enqueueEnrich } from "../lib/lazyEnrich";
@@ -18,10 +18,26 @@ export function Loading({ label }: { label?: string }) {
 
 export function BackLink({ to = "/search", label }: { to?: string; label?: string }) {
   const { t } = useT();
-  return (
-    <Link to={to} className="btn-back">
+  const navigate = useNavigate();
+  // React Router records a history index; >0 means there's an in-app screen to
+  // return to. Otherwise (direct deep-link / fresh tab) fall back to `to`.
+  const canGoBack = typeof window !== "undefined" && ((window.history.state?.idx ?? 0) > 0);
+  const inner = (
+    <>
       <IconChevron width={18} height={18} style={{ transform: "rotate(180deg)" }} />
       <span>{label ?? t("common.back")}</span>
+    </>
+  );
+  if (canGoBack) {
+    return (
+      <button type="button" className="btn-back" onClick={() => navigate(-1)}>
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <Link to={to} className="btn-back">
+      {inner}
     </Link>
   );
 }
