@@ -6,7 +6,7 @@ interface Day { date: string; count: number; hours: number; }
 export function Heatmap({ days, year, selected, onSelect }: {
   days: Day[]; year: number; selected?: string | null; onSelect?: (date: string) => void;
 }) {
-  const { cells, max, months } = useMemo(() => {
+  const { cells, max, months, cols } = useMemo(() => {
     const byDate = new Map(days.map((d) => [d.date, d]));
     const start = new Date(Date.UTC(year, 0, 1));
     const end = new Date(Date.UTC(year, 11, 31));
@@ -39,7 +39,7 @@ export function Heatmap({ days, year, selected, onSelect }: {
       cur.setUTCDate(cur.getUTCDate() + 1);
       if (cur > end && cur.getUTCDay() === 0) break;
     }
-    return { cells, max, months };
+    return { cells, max, months, cols: col };
   }, [days, year]);
 
   const level = (c: number) => {
@@ -52,30 +52,34 @@ export function Heatmap({ days, year, selected, onSelect }: {
 
   return (
     <div>
-      <div className="row" style={{ gap: 12, marginBottom: 6, marginLeft: 26, fontSize: "0.72rem", color: "var(--text-secondary)" }}>
-        {months.map((m, i) => <span key={i} style={{ minWidth: 26 }}>{m.label}</span>)}
-      </div>
-      <div className="heatmap">
-        {cells.map((c, i) => {
-          const clickable = !!(c.date && c.count && onSelect);
-          const isSel = !!(c.date && selected && c.date === selected);
-          return (
-            <div
-              key={i}
-              className={"cell" + (clickable ? " clickable" : "") + (isSel ? " selected" : "")}
-              onClick={clickable ? () => onSelect!(c.date!) : undefined}
-              title={c.date ? `${c.date}: ${c.count} watched · ${c.hours}h` : ""}
-              style={{
-                background: c.date
-                  ? c.count
-                    ? `color-mix(in srgb, var(--accent) ${level(c.count) * 100}%, transparent)`
-                    : "var(--accent-subtle)"
-                  : "transparent",
-                cursor: clickable ? "pointer" : "default",
-              }}
-            />
-          );
-        })}
+      <div className="heatmap-scroll">
+        <div className="heatmap-months" style={{ gridTemplateColumns: `repeat(${cols}, 13px)` }}>
+          {months.map((m, i) => (
+            <span key={i} style={{ gridColumn: `${m.col + 1} / ${(months[i + 1]?.col ?? cols) + 1}` }}>{m.label}</span>
+          ))}
+        </div>
+        <div className="heatmap">
+          {cells.map((c, i) => {
+            const clickable = !!(c.date && c.count && onSelect);
+            const isSel = !!(c.date && selected && c.date === selected);
+            return (
+              <div
+                key={i}
+                className={"cell" + (clickable ? " clickable" : "") + (isSel ? " selected" : "")}
+                onClick={clickable ? () => onSelect!(c.date!) : undefined}
+                title={c.date ? `${c.date}: ${c.count} watched · ${c.hours}h` : ""}
+                style={{
+                  background: c.date
+                    ? c.count
+                      ? `color-mix(in srgb, var(--accent) ${level(c.count) * 100}%, transparent)`
+                      : "var(--accent-subtle)"
+                    : "transparent",
+                  cursor: clickable ? "pointer" : "default",
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
       <div className="heat-legend" style={{ marginTop: 8 }}>
         <span>Less</span>
