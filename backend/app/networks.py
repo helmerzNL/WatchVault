@@ -21,7 +21,10 @@ Rules:
 """
 from __future__ import annotations
 
+import json
+
 from .db import connection
+from .plugins import runtime
 
 # Normalized TMDB network name -> provider key in our catalogue. Resolution
 # still checks the provider exists in the DB, so removed providers (e.g. nlziet)
@@ -68,52 +71,100 @@ def resolve_network_provider(cur, networks: list[dict]):
     return str(row["id"]), row["key"]
 
 
+def _ensure_networks(title: dict) -> list[dict]:
+    """Return a series' TMDB networks, lazily fetching + persisting them when
+    missing.
+
+    Titles enriched before networks were captured have no ``metadata.networks``,
+    so every Trakt event would fall back to "Other" forever (lazy-enrich never
+    re-runs once ``enriched_at`` is set). When the key is absent we fetch
+    ``tv_details`` once and persist the result — even an empty list, to mark it
+    fetched and avoid refetching on every backfill pass. A transient fetch
+    failure persists nothing, so it is retried next time."""
+    metadata = title.get("metadata") or {}
+    if "networks" in metadata:
+        return metadata.get("networks") or []
+    if title.get("kind") != "series" or not title.get("tmdb_id"):
+        return []
+
+    details = None
+    try:
+        for pid in runtime.capability_providers("tv_details"):
+            plugin = runtime.get_plugin(pid)
+            if not getattr(plugin, "configured", True):
+                continue
+            details = plugin.tv_details(title["tmdb_id"])
+            if details:
+                break
+    except Exception:  # noqa: BLE001 — re-attribution must not fail on a fetch error
+        return []
+    if details is None:
+        return []  # provider unreachable — retry on a later pass
+
+    networks = details.get("networks") or []
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE titles SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb "
+            "WHERE id = %s",
+            (json.dumps({"networks": networks}), str(title["id"])))
+    return networks
+
+
 def reattribute_title_trakt_events(title_id: str) -> dict:
     """Move a title's Trakt-sourced watch events onto the provider matching its
-    TMDB network (or the generic provider), recomputing aggregates for both the
-    old and new provider over the affected days.
+    TMDB network (or the generic provider), recomputing aggregates for every
+    affected provider over the affected days.
+
+    Trakt-origin events are identified by ``raw->>'source' = 'trakt'`` rather than
+    their current provider, so events already moved onto a provider (e.g. the
+    generic one from an earlier pass, before the network was known) are picked up
+    again and re-attributed once ``metadata.networks`` is available. Events
+    already on the resolved target are skipped, making this idempotent.
 
     Returns a status dict with the number of events ``moved`` and ``collapsed``
     (tombstoned because the same watch already exists on the target provider)."""
     with connection() as conn, conn.cursor() as cur:
-        cur.execute("SELECT id, metadata FROM titles WHERE id = %s", (title_id,))
+        cur.execute("SELECT id, kind, tmdb_id, metadata FROM titles WHERE id = %s",
+                    (title_id,))
         title = cur.fetchone()
-        if not title:
-            return {"status": "no_title"}
+    if not title:
+        return {"status": "no_title"}
 
-        cur.execute("SELECT id FROM providers WHERE key = 'trakt'")
-        trakt = cur.fetchone()
-        if not trakt:
-            return {"status": "no_trakt_provider"}
-        trakt_id = str(trakt["id"])
+    networks = _ensure_networks(dict(title))
 
-        networks = (title["metadata"] or {}).get("networks") or []
+    with connection() as conn, conn.cursor() as cur:
         target_id, target_key = resolve_network_provider(cur, networks)
-        if target_id == trakt_id:
-            return {"status": "noop"}
 
         cur.execute(
-            "SELECT id, user_id, watched_date, episode_id "
+            "SELECT id, user_id, watched_date, episode_id, provider_id "
             "FROM watch_events "
-            "WHERE title_id = %s AND provider_id = %s AND deleted_at IS NULL",
-            (title_id, trakt_id))
+            "WHERE title_id = %s AND raw->>'source' = 'trakt' AND deleted_at IS NULL "
+            "  AND provider_id <> %s",
+            (title_id, target_id))
         rows = cur.fetchall()
         if not rows:
             return {"status": "ok", "moved": 0, "collapsed": 0, "provider": target_key}
 
-        affected: dict[str, set] = {}
+        # Capture the affected days per old provider (to drain its agg) and per
+        # user (to refill the target's agg).
+        affected_old: dict[tuple[str, str], set] = {}
+        user_dates: dict[str, set] = {}
         for r in rows:
-            affected.setdefault(str(r["user_id"]), set()).add(r["watched_date"])
+            affected_old.setdefault(
+                (str(r["user_id"]), str(r["provider_id"])), set()).add(r["watched_date"])
+            user_dates.setdefault(str(r["user_id"]), set()).add(r["watched_date"])
 
         moved = collapsed = 0
         for r in rows:
-            # Collapse (tombstone) the Trakt event when the same watch already
-            # exists on the target provider, to avoid double counting.
+            # Collapse (tombstone) the Trakt event when a *real* provider event
+            # already covers this watch, to avoid double counting. Other Trakt
+            # events are excluded so two migrating events don't cancel each other.
             cur.execute(
                 "SELECT 1 FROM watch_events "
                 "WHERE user_id = %s AND title_id = %s AND provider_id = %s "
                 "  AND watched_date = %s AND deleted_at IS NULL "
-                "  AND episode_id IS NOT DISTINCT FROM %s AND id <> %s LIMIT 1",
+                "  AND episode_id IS NOT DISTINCT FROM %s AND id <> %s "
+                "  AND COALESCE(raw->>'source', '') <> 'trakt' LIMIT 1",
                 (str(r["user_id"]), title_id, target_id, r["watched_date"],
                  r["episode_id"], r["id"]))
             if cur.fetchone():
@@ -125,10 +176,10 @@ def reattribute_title_trakt_events(title_id: str) -> dict:
                         (target_id, r["id"]))
             moved += 1
 
-        for uid, dates in affected.items():
-            dl = list(dates)
-            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, trakt_id, dl))
-            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, target_id, dl))
+        for (uid, old_pid), dates in affected_old.items():
+            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, old_pid, list(dates)))
+        for uid, dates in user_dates.items():
+            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, target_id, list(dates)))
 
     return {"status": "ok", "moved": moved, "collapsed": collapsed,
             "provider": target_key}
@@ -138,13 +189,14 @@ def reattribute_all_trakt() -> dict:
     """Backfill: re-attribute every enriched title that still has Trakt events.
 
     Used as a one-time job on deploy so existing history is moved off "Trakt"
-    onto the real services without waiting for each title to be re-enriched."""
+    onto the real services without waiting for each title to be re-enriched.
+    Titles are found via ``raw->>'source' = 'trakt'`` so events already moved to
+    the generic provider in an earlier (network-less) pass are revisited."""
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT DISTINCT we.title_id FROM watch_events we "
-            "JOIN providers p ON p.id = we.provider_id "
             "JOIN titles t ON t.id = we.title_id "
-            "WHERE p.key = 'trakt' AND we.deleted_at IS NULL "
+            "WHERE we.raw->>'source' = 'trakt' AND we.deleted_at IS NULL "
             "  AND t.enriched_at IS NOT NULL")
         title_ids = [str(r["title_id"]) for r in cur.fetchall()]
 

@@ -276,6 +276,25 @@ def test_resolve_network_provider_falls_back_to_generic():
     assert resolve_network_provider(cur, [{"name": "Apple TV+"}]) == ("generic-id", "generic")
 
 
+def test_ensure_networks_returns_stored_without_fetching():
+    from app.networks import _ensure_networks
+    # metadata already has the key -> returned as-is, no fetch (would need DB/runtime)
+    title = {"id": "t1", "kind": "series", "tmdb_id": 42,
+             "metadata": {"networks": [{"name": "Netflix"}]}}
+    assert _ensure_networks(title) == [{"name": "Netflix"}]
+    # present-but-empty key still short-circuits (marks "already fetched")
+    assert _ensure_networks({"id": "t2", "kind": "series", "tmdb_id": 42,
+                             "metadata": {"networks": []}}) == []
+
+
+def test_ensure_networks_skips_movies_and_missing_tmdb():
+    from app.networks import _ensure_networks
+    # movies have no network -> empty, no fetch attempted
+    assert _ensure_networks({"id": "m1", "kind": "movie", "tmdb_id": 9, "metadata": {}}) == []
+    # a series without a tmdb id cannot be fetched -> empty
+    assert _ensure_networks({"id": "s1", "kind": "series", "tmdb_id": None, "metadata": {}}) == []
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))
