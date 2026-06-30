@@ -60,6 +60,16 @@ export function fmtMonth(iso: string): string {
   return parseLocalDate(iso).toLocaleDateString(formatLocale, { month: "short", year: "numeric" });
 }
 
+// Short day + month in the active locale's ordering (e.g. "30 jun" vs "Jun 30"),
+// so chart axis/tooltip labels never show a raw MM-DD / DD-MM string.
+export function fmtDayMonth(iso: string): string {
+  try {
+    return parseLocalDate(iso).toLocaleDateString(formatLocale, { day: "numeric", month: "short" });
+  } catch {
+    return iso;
+  }
+}
+
 export function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }

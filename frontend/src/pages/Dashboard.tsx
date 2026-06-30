@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Spark } from "../components/charts";
 import { Loading, ErrorState, Empty, Stat, Poster, Section, MonthNav, RangeSeg, Seg, type Range } from "../components/ui";
-import { fmtHours, fmtNum, monthKey, monthLabel } from "../lib/format";
+import { fmtHours, fmtNum, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
 import { IconChart, IconImport } from "../components/icons";
 import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
 
@@ -37,7 +37,7 @@ export function Dashboard() {
   }
 
   const spark = (recent.data ?? s.recent ?? []).map((r: any) => ({
-    label: r.date, value: r.count,
+    label: recentRange === "year" ? fmtMonth(r.date) : fmtDayMonth(r.date), value: r.count,
   }));
   const recentTitle = recentRange === "week" ? "dashboard.last7"
     : recentRange === "year" ? "dashboard.last12m" : "dashboard.last30";

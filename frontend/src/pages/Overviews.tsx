@@ -7,7 +7,7 @@ import { useFetch } from "../lib/useFetch";
 import { TrendArea, StackedBars } from "../components/charts";
 import { Heatmap } from "../components/Heatmap";
 import { Loading, ErrorState, Poster, Section, Seg, MonthNav, RangeSeg, type Range } from "../components/ui";
-import { fmtDate, fmtHours, fmtMonth, monthKey, monthLabel } from "../lib/format";
+import { fmtDate, fmtHours, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
 
 type Gran = "day" | "week" | "month";
 
@@ -18,7 +18,7 @@ function HoursTrend({ scope }: { scope: string }) {
     () => api.get("/stats/trend", { profile: scope, granularity: gran }), [scope, gran]);
 
   const series = useMemo(() => (data || []).map((r) => ({
-    label: gran === "month" ? fmtMonth(r.period) : r.period.slice(5),
+    label: gran === "month" ? fmtMonth(r.period) : fmtDayMonth(r.period),
     value: r.hours,
   })), [data, gran]);
 
