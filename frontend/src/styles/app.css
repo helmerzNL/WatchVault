@@ -561,7 +561,7 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 .cinema-hit:hover { background: var(--accent-subtle); }
 .cinema-hit.selected { border-color: var(--hairline); background: var(--bg-elev); }
 .cinema-hit-poster {
-  flex: 0 0 auto; width: 46px; aspect-ratio: 2 / 3;
+  flex: 0 0 46px; width: 46px; height: 69px; align-self: flex-start;
   border-radius: 8px; overflow: hidden; background: var(--bg-elev);
   border: 1px solid var(--hairline);
 }
