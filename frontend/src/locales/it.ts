@@ -260,6 +260,13 @@ const it = {
   "title.notWatched": "Non visto",
   "title.watchedOn": "Visto il {date}",
   "title.watchedOfEpisodes": "{watched} di {total} episodi visti",
+  "title.watchDates": "Date di visione",
+  "title.addWatch": "Aggiungi data",
+  "title.markWatched": "Segna come visto",
+  "title.markSeasonWatched": "Segna stagione",
+  "title.seasonMarked": "{n} episodi segnati",
+  "title.watchAdded": "Data aggiunta",
+  "title.watchRemoved": "Data rimossa",
 
   // ── Person ──────────────────────────────────────────────────────────────
   "person.biography": "Biografia",

@@ -260,6 +260,13 @@ const en = {
   "title.notWatched": "Not watched",
   "title.watchedOn": "Watched {date}",
   "title.watchedOfEpisodes": "{watched} of {total} episodes watched",
+  "title.watchDates": "Watch dates",
+  "title.addWatch": "Add watch date",
+  "title.markWatched": "Mark as watched",
+  "title.markSeasonWatched": "Mark season",
+  "title.seasonMarked": "{n} episodes marked",
+  "title.watchAdded": "Watch date added",
+  "title.watchRemoved": "Watch date removed",
 
   // ── Person ──────────────────────────────────────────────────────────────
   "person.biography": "Biography",
