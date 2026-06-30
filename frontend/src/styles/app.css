@@ -4,6 +4,27 @@
 
 html, body, #root { height: 100%; margin: 0; }
 
+/* Native-app feel: kill double-tap zoom delay, the iOS long-press callout
+   (image/link preview popup), and accidental text selection / image drag.
+   Inputs and explicitly .selectable content keep normal selection. */
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior-y: none;
+}
+input, textarea, select, [contenteditable], .selectable, .selectable * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+img { -webkit-user-drag: none; user-select: none; }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
