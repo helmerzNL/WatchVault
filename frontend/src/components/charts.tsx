@@ -28,7 +28,7 @@ interface SeriesPoint { label: string; value: number; }
 export function TrendArea({ data, height = 240 }: { data: SeriesPoint[]; height?: number }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+      <AreaChart data={data} margin={{ top: 16, right: 8, bottom: 0, left: -16 }}>
         <defs>
           <linearGradient id="wv-area" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={accent()} stopOpacity={0.45} />
@@ -37,7 +37,8 @@ export function TrendArea({ data, height = 240 }: { data: SeriesPoint[]; height?
         </defs>
         <CartesianGrid stroke={grid()} vertical={false} />
         <XAxis dataKey="label" stroke={axis()} tickLine={false} axisLine={false} fontSize={12} minTickGap={20} />
-        <YAxis stroke={axis()} tickLine={false} axisLine={false} fontSize={12} width={42} />
+        <YAxis stroke={axis()} tickLine={false} axisLine={false} fontSize={12} width={42}
+          domain={[0, (max: number) => (max > 0 ? Math.ceil(max * 1.15) : 1)]} />
         <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: accent(), strokeOpacity: 0.3 }} />
         <Area type="monotone" dataKey="value" stroke={accent()} strokeWidth={2.5} fill="url(#wv-area)" name="Hours" />
       </AreaChart>
