@@ -183,57 +183,61 @@ function GenreActor({ scope }: { scope: string }) {
 
   return (
     <div className="grid-2">
-      <Section title={t("overviews.timePerGenre")}>
-        <div className="card">
-          <div className="row" style={{ marginBottom: 12 }}>
-            <div className="spacer" style={{ flex: 1 }} />
-            <RangeSeg value={genreRange} onChange={setGenreRange} />
-          </div>
-          {genre.loading ? <Loading /> :
-            genreData.length ? (
-              <div className="col" style={{ gap: 10 }}>
-                {genreData.map((g) => (
-                  <Link key={g.genre_id} to={`/genre/${g.genre_id}`} className="row"
-                    style={{ gap: 12, color: "inherit", textDecoration: "none" }}>
-                    <div className="col" style={{ flex: 1, gap: 4 }}>
-                      <div className="row"><span style={{ fontWeight: 600, fontSize: "0.9rem", flex: 1 }}>{tGenre(g.genre)}</span>
-                        <span className="caption">{fmtHours(g.hours)}</span></div>
-                      <div className="bar-track"><div className="bar-fill" style={{ width: `${(g.hours / genreMax) * 100}%` }} /></div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : <p className="muted">{t("overviews.noGenreData")}</p>}
-        </div>
-      </Section>
-      <Section title={t("overviews.timePerActor")}>
-        <div className="card">
-          <div className="row" style={{ marginBottom: 12 }}>
-            <div className="spacer" style={{ flex: 1 }} />
-            <RangeSeg value={actorRange} onChange={setActorRange} />
-          </div>
-          {actor.loading ? <Loading /> :
-            actor.data && actor.data.length ? (
-              <div className="col" style={{ gap: 10 }}>
-                {actor.data.map((a, i) => {
-                  const maxH = Math.max(...actor.data!.map((x) => x.hours), 1);
-                  return (
-                    <Link key={a.id} to={`/person/${a.id}`} className="row" style={{ gap: 12, color: "inherit", textDecoration: "none" }}>
-                      <span className="avatar" style={{ width: 34, height: 34, fontSize: 12 }}>
-                        {a.profile ? <img src={a.profile} alt="" /> : i + 1}
-                      </span>
+      <div>
+        <Section title={t("overviews.timePerGenre")}>
+          <div className="card">
+            <div className="row" style={{ marginBottom: 12 }}>
+              <div className="spacer" style={{ flex: 1 }} />
+              <RangeSeg value={genreRange} onChange={setGenreRange} />
+            </div>
+            {genre.loading ? <Loading /> :
+              genreData.length ? (
+                <div className="col" style={{ gap: 10 }}>
+                  {genreData.map((g) => (
+                    <Link key={g.genre_id} to={`/genre/${g.genre_id}`} className="row"
+                      style={{ gap: 12, color: "inherit", textDecoration: "none" }}>
                       <div className="col" style={{ flex: 1, gap: 4 }}>
-                        <div className="row"><span style={{ fontWeight: 600, fontSize: "0.9rem", flex: 1 }}>{a.name}</span>
-                          <span className="caption">{fmtHours(a.hours)}</span></div>
-                        <div className="bar-track"><div className="bar-fill" style={{ width: `${(a.hours / maxH) * 100}%` }} /></div>
+                        <div className="row"><span style={{ fontWeight: 600, fontSize: "0.9rem", flex: 1 }}>{tGenre(g.genre)}</span>
+                          <span className="caption">{fmtHours(g.hours)}</span></div>
+                        <div className="bar-track"><div className="bar-fill" style={{ width: `${(g.hours / genreMax) * 100}%` }} /></div>
                       </div>
                     </Link>
-                  );
-                })}
-              </div>
-            ) : <p className="muted">{t("overviews.noCastData")}</p>}
-        </div>
-      </Section>
+                  ))}
+                </div>
+              ) : <p className="muted">{t("overviews.noGenreData")}</p>}
+          </div>
+        </Section>
+      </div>
+      <div>
+        <Section title={t("overviews.timePerActor")}>
+          <div className="card">
+            <div className="row" style={{ marginBottom: 12 }}>
+              <div className="spacer" style={{ flex: 1 }} />
+              <RangeSeg value={actorRange} onChange={setActorRange} />
+            </div>
+            {actor.loading ? <Loading /> :
+              actor.data && actor.data.length ? (
+                <div className="col" style={{ gap: 10 }}>
+                  {actor.data.map((a, i) => {
+                    const maxH = Math.max(...actor.data!.map((x) => x.hours), 1);
+                    return (
+                      <Link key={a.id} to={`/person/${a.id}`} className="row" style={{ gap: 12, color: "inherit", textDecoration: "none" }}>
+                        <span className="avatar" style={{ width: 34, height: 34, fontSize: 12 }}>
+                          {a.profile ? <img src={a.profile} alt="" /> : i + 1}
+                        </span>
+                        <div className="col" style={{ flex: 1, gap: 4 }}>
+                          <div className="row"><span style={{ fontWeight: 600, fontSize: "0.9rem", flex: 1 }}>{a.name}</span>
+                            <span className="caption">{fmtHours(a.hours)}</span></div>
+                          <div className="bar-track"><div className="bar-fill" style={{ width: `${(a.hours / maxH) * 100}%` }} /></div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : <p className="muted">{t("overviews.noCastData")}</p>}
+          </div>
+        </Section>
+      </div>
     </div>
   );
 }
