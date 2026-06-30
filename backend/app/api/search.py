@@ -183,6 +183,7 @@ def title_detail(title_id: str):
         "backdrop": poster_url(t["backdrop_path"], "w780"),
         "runtime_minutes": t["runtime_minutes"], "tmdb_id": t["tmdb_id"],
         "external_ids": t["external_ids"],
+        "release_date": (t.get("metadata") or {}).get("release_date"),
         "trakt_configured": trakt_ok,
         "platform_override": override,
         "genres": [g["name"] for g in genres],

@@ -9,6 +9,11 @@ import { fmtDate } from "../lib/format";
 import { useState } from "react";
 
 const today = () => new Date().toISOString().slice(0, 10);
+const yesterday = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+};
 
 function PersonCard({ c }: { c: any }) {
   const inner = (
@@ -25,29 +30,49 @@ function PersonCard({ c }: { c: any }) {
     : <div className="cast-card">{inner}</div>;
 }
 
-// Inline "add a watch date" control: a + button that reveals a date picker
-// (defaulting to today) with confirm/cancel. Used for movies and episodes.
-function AddWatch({ onAdd, label }: { onAdd: (date: string) => Promise<void>; label?: string }) {
+// Inline "add a watch date" control: a + button that reveals quick-pick shortcuts
+// (release date / yesterday / today) plus a date picker for any other day. Used
+// for movies and episodes; `releaseDate` (movie release / episode air date) is
+// optional and its shortcut only shows when known and not in the future.
+function AddWatch(
+  { onAdd, label, releaseDate }:
+  { onAdd: (date: string) => Promise<void>; label?: string; releaseDate?: string | null },
+) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(today);
   const [busy, setBusy] = useState(false);
+  const td = today();
+  async function submit(d: string) {
+    setBusy(true);
+    try { await onAdd(d); setOpen(false); } finally { setBusy(false); }
+  }
   if (!open) {
     return (
-      <button className="btn-ghost btn-sm" onClick={() => { setDate(today()); setOpen(true); }}>
+      <button className="btn-ghost btn-sm" onClick={() => { setDate(td); setOpen(true); }}>
         <IconPlus width={14} height={14} /> {label || t("title.addWatch")}
       </button>
     );
   }
   return (
-    <div className="row" style={{ gap: 6, alignItems: "center" }}>
-      <input type="date" value={date} max={today()}
-        onChange={(e) => setDate(e.target.value)} style={{ minHeight: 34, padding: "4px 8px" }} />
-      <button className="btn-primary btn-sm" disabled={busy || !date}
-        onClick={async () => { setBusy(true); try { await onAdd(date); setOpen(false); } finally { setBusy(false); } }}>
-        {t("common.add")}
-      </button>
-      <button className="btn-ghost btn-sm" onClick={() => setOpen(false)}>{t("common.cancel")}</button>
+    <div className="col" style={{ gap: 6, alignItems: "flex-start" }}>
+      <div className="row wrap" style={{ gap: 6 }}>
+        {releaseDate && releaseDate <= td && (
+          <button className="chip" style={{ minHeight: 0, padding: "4px 10px" }}
+            disabled={busy} onClick={() => submit(releaseDate)}>{t("title.releaseDate")}</button>
+        )}
+        <button className="chip" style={{ minHeight: 0, padding: "4px 10px" }}
+          disabled={busy} onClick={() => submit(yesterday())}>{t("common.yesterday")}</button>
+        <button className="chip" style={{ minHeight: 0, padding: "4px 10px" }}
+          disabled={busy} onClick={() => submit(td)}>{t("common.today")}</button>
+      </div>
+      <div className="row" style={{ gap: 6, alignItems: "center" }}>
+        <input type="date" value={date} max={td}
+          onChange={(e) => setDate(e.target.value)} style={{ minHeight: 34, padding: "4px 8px" }} />
+        <button className="btn-primary btn-sm" disabled={busy || !date}
+          onClick={() => submit(date)}>{t("common.add")}</button>
+        <button className="btn-ghost btn-sm" onClick={() => setOpen(false)}>{t("common.cancel")}</button>
+      </div>
     </div>
   );
 }
@@ -131,6 +156,7 @@ function EpisodeRow({ ep, ctl }: { ep: any; ctl: Ctl }) {
           <div className="manual-row">
             <WatchDateChips dates={dates} onRemove={(d) => ctl.removeEpisode(ep.id, d)} />
             <AddWatch onAdd={(date) => ctl.addEpisode(ep.id, date)}
+              releaseDate={ep.air_date}
               label={ep.watched ? t("title.addWatch") : t("title.markWatched")} />
           </div>
         )}
@@ -326,7 +352,9 @@ export function TitleDetail() {
           )}
           <div className="spacer" style={{ flex: 1 }} />
           <PlatformSelect value={ti.platform_override?.id || ""}
-            providers={providers || []} onChange={setPlatform} />
+            providers={(providers || []).filter(
+              (p: any) => p.key !== "cinema" || ti.kind === "movie")}
+            onChange={setPlatform} />
         </div>
       )}
 
@@ -337,7 +365,7 @@ export function TitleDetail() {
             <strong>{t("title.watchDates")}</strong>
             <WatchDateChips dates={ti.watch_dates || []} onRemove={removeTitleWatch} />
             <div className="spacer" style={{ flex: 1 }} />
-            <AddWatch onAdd={addTitleWatch}
+            <AddWatch onAdd={addTitleWatch} releaseDate={ti.release_date}
               label={ti.watch_dates?.length ? t("title.addWatch") : t("title.markWatched")} />
           </div>
         </div>
