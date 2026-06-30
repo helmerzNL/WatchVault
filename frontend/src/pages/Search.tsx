@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT, providerLabel } from "../lib/i18n";
+import { useT, providerLabelShort } from "../lib/i18n";
 import { api } from "../lib/api";
 import { Loading, Empty, Poster, ErrorState } from "../components/ui";
 import { IconSearch } from "../components/icons";
@@ -59,9 +59,9 @@ export function Search() {
       if (p.key === "plex" || p.key === "jellyfin") {
         if (digital) continue;
         digital = true;
-        out.push({ key: "digital_library", label: providerLabel(t, "digital_library", p.name) });
+        out.push({ key: "digital_library", label: providerLabelShort(t, "digital_library", p.name) });
       } else {
-        out.push({ key: p.key, label: providerLabel(t, p.key, p.name) });
+        out.push({ key: p.key, label: providerLabelShort(t, p.key, p.name) });
       }
     }
     return out;
@@ -185,7 +185,7 @@ export function Search() {
             <div className="poster-grid">
               {results.map((rt) => {
                 const p0 = rt.platforms?.[0];
-                const plat = p0 ? providerLabel(t, p0.key, p0.name) : "";
+                const plat = p0 ? providerLabelShort(t, p0.key, p0.name) : "";
                 return (
                   <Poster key={rt.id} to={`/title/${rt.id}`} poster={rt.poster} title={rt.title} kind={rt.kind}
                     enrichId={rt.id}

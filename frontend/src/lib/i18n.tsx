@@ -110,3 +110,11 @@ export function providerLabel(t: TFn, key: string | undefined, name: string): st
     return t("provider.digitalLibrary");
   return name;
 }
+
+// Same as providerLabel but uses the short "Local" wording for the merged
+// Plex+Jellyfin library — used only in the Search screen, where space is tight.
+export function providerLabelShort(t: TFn, key: string | undefined, name: string): string {
+  if (key === "plex" || key === "jellyfin" || key === "digital_library")
+    return t("provider.digitalLibraryShort");
+  return providerLabel(t, key, name);
+}
