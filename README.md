@@ -4,7 +4,7 @@
 
 WatchVault is a self-hosted, multi-profile web app (PWA) that collects, normalizes,
 searches and visualizes the viewing history of every streaming and media service in a
-household — Netflix, Plex, Jellyfin, HBO Max, SkyShowtime, Videoland, NLZiet and more.
+household — Netflix, Plex, Jellyfin, HBO Max, SkyShowtime, Videoland and more.
 Each family member has their own passwordless profile; history is tracked per profile
 and can be viewed combined at the household level.
 
@@ -23,7 +23,7 @@ single-container deployment (nginx + Gunicorn + worker + Postgres).
   not touch the core. Ships with:
   - **Netflix** — official "Viewing activity → Download all" CSV importer.
   - **Plex / Jellyfin / Trakt** — direct API sync (watch history), on-demand.
-  - **Generic CSV/JSON** — for HBO Max, SkyShowtime, Videoland, NLZiet, Disney+, Prime…
+  - **Generic CSV/JSON** — for HBO Max, SkyShowtime, Videoland, Disney+, Prime…
 - **Central, normalized model** — titles (with seasons/episodes), genres, cast/crew,
   watch events, providers. Titles carry an optional `external_ids` field so a title can
   later be cross-linked to other VaultStack systems (DiscVault/MovieVault) — no hard

@@ -1,5 +1,5 @@
 """Generic CSV/JSON adapter for providers without an official consumer API
-(HBO Max, SkyShowtime, Videoland, NLZiet, Disney+, Prime, …).
+(HBO Max, SkyShowtime, Videoland, Disney+, Prime, …).
 
 Auto-detects common column names and tolerates manual exports. Series vs movie
 is inferred from a type column or the presence of season/episode fields."""
