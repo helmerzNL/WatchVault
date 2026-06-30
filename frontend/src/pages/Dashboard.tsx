@@ -15,13 +15,11 @@ type RecentRange = "week" | "month" | "year";
 export function Dashboard() {
   const { scope, user } = useApp();
   const { t } = useT();
-  const [month, setMonth] = useState(monthKey(new Date()));
   const [range, setRange] = useState<Range>("all");
   const [recentRange, setRecentRange] = useState<RecentRange>("month");
 
   const summary = useFetch<any>(() => api.get("/stats/summary", { profile: scope }), [scope]);
   const providers = useFetch<any[]>(() => api.get("/stats/providers", { profile: scope, range }), [scope, range]);
-  const month_ = useFetch<any[]>(() => api.get("/stats/month", { profile: scope, month }), [scope, month]);
   const recent = useFetch<any[]>(() => api.get("/stats/recent", { profile: scope, range: recentRange }), [scope, recentRange]);
 
   if (summary.loading) return <Loading />;
@@ -109,20 +107,32 @@ export function Dashboard() {
         </div>
       )}
 
-      <Section title={t("dashboard.watchedIn", { month: monthLabel(month) })}
-        right={<MonthNav value={month} onChange={setMonth} />}>
-        {month_.loading ? <Loading /> :
-          month_.data && month_.data.length > 0 ? (
-            <div className="poster-grid">
-              {month_.data.slice(0, 12).map((t2) => (
-                <Poster key={t2.id} to={`/title/${t2.id}`} poster={t2.poster} title={t2.title} kind={t2.kind}
-                  enrichId={t2.id}
-                  subtitle={t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours)}`}
-                  badge={t2.kind === "movie" ? t("common.film") : t("common.series")} />
-              ))}
-            </div>
-          ) : <p className="muted">{t("dashboard.nothingThisMonth")}</p>}
-      </Section>
+      <MonthlyTitles scope={scope} />
     </>
+  );
+}
+
+// Isolated so paging months only re-renders this section (and not the Spark
+// chart / per-platform card above it), matching the Overviews experience.
+function MonthlyTitles({ scope }: { scope: string }) {
+  const { t } = useT();
+  const [month, setMonth] = useState(monthKey(new Date()));
+  const month_ = useFetch<any[]>(() => api.get("/stats/month", { profile: scope, month }), [scope, month]);
+
+  return (
+    <Section title={t("dashboard.watchedIn", { month: monthLabel(month) })}
+      right={<MonthNav value={month} onChange={setMonth} />}>
+      {month_.loading ? <Loading /> :
+        month_.data && month_.data.length > 0 ? (
+          <div className="poster-grid">
+            {month_.data.slice(0, 12).map((t2) => (
+              <Poster key={t2.id} to={`/title/${t2.id}`} poster={t2.poster} title={t2.title} kind={t2.kind}
+                enrichId={t2.id}
+                subtitle={t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours)}`}
+                badge={t2.kind === "movie" ? t("common.film") : t("common.series")} />
+            ))}
+          </div>
+        ) : <p className="muted">{t("dashboard.nothingThisMonth")}</p>}
+    </Section>
   );
 }
