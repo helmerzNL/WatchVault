@@ -171,8 +171,8 @@ function NowPlaying({ scope }: { scope: string }) {
             s.state === "paused" ? t("scrobble.paused") : t("scrobble.playing")]
             .filter(Boolean).join(" · ");
           const pct = Math.max(0, Math.min(100, Number(s.progress) || 0));
-          return (
-            <div key={s.id} className="row" style={{ gap: 14, alignItems: "center" }}>
+          const inner = (
+            <>
               <div className="poster" style={{ width: 46, flexShrink: 0, aspectRatio: "2 / 3", borderRadius: 8, overflow: "hidden" }}>
                 {s.poster ? <img src={s.poster} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   : <div className="ph" style={{ width: "100%", height: "100%" }} />}
@@ -187,6 +187,15 @@ function NowPlaying({ scope }: { scope: string }) {
                 </div>
               </div>
               <span className="caption" style={{ flexShrink: 0, width: 42, textAlign: "right" }}>{Math.round(pct)}%</span>
+            </>
+          );
+          return s.title_id ? (
+            <Link key={s.id} to={`/title/${s.title_id}`} className="row np-row" style={{ gap: 14, alignItems: "center" }}>
+              {inner}
+            </Link>
+          ) : (
+            <div key={s.id} className="row" style={{ gap: 14, alignItems: "center" }}>
+              {inner}
             </div>
           );
         })}

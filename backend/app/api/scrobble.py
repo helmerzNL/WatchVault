@@ -112,6 +112,7 @@ def now_playing():
     return jsonify([
         {
             "id": str(r["id"]),
+            "title_id": str(r["title_id"]) if r["title_id"] else None,
             "profile": r["profile_name"],
             "profile_id": str(r["user_id"]) if r["user_id"] else None,
             "account_label": r["account_label"],

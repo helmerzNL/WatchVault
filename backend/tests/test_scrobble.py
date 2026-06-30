@@ -475,10 +475,19 @@ def test_now_playing_query_drops_committed_at_filter(monkeypatch):
 
     captured = {}
 
+    fake_row = {
+        "id": "sess-1", "title_id": "title-42", "profile_name": "Alice",
+        "user_id": "u-1", "account_label": None, "source": "homeassistant",
+        "provider_name": "Plex", "provider_color": "#e5a00d", "raw_title": "Dune",
+        "kind": "movie", "season": None, "episode": None, "episode_name": None,
+        "year": 2024, "poster_path": None, "progress_percent": 95,
+        "state": "playing", "updated_at": None,
+    }
+
     def fake_query_all(sql, params=None):
         captured["sql"] = _norm(sql)
         captured["params"] = params
-        return []
+        return [fake_row]
     monkeypatch.setattr(_api, "query_all", fake_query_all)
 
     client = create_app().test_client()
@@ -491,6 +500,10 @@ def test_now_playing_query_drops_committed_at_filter(monkeypatch):
     # A session paused for >10 minutes is hidden from the dashboard.
     assert "s.state = 'paused'" in captured["sql"]
     assert "interval '10 minutes'" in captured["sql"]
+    # The card is clickable: now-playing exposes the resolved title_id so the
+    # frontend can link to /title/<id>.
+    body = resp.get_json()
+    assert body[0]["title_id"] == "title-42"
 
 
 def test_expire_stale_already_committed_marks_stopped_without_reingest(monkeypatch):
