@@ -89,6 +89,7 @@ actions:
       content_id: "{{ (trigger.from_state.attributes.get('media_content_id') if use_from else state_attr(wv_entity, 'media_content_id')) | default('') }}"
       duration: "{{ (trigger.from_state.attributes.get('media_duration') if use_from else state_attr(wv_entity, 'media_duration')) | float(0) }}"
       title: "{{ ((trigger.from_state.attributes.get('media_title') if use_from else state_attr(wv_entity, 'media_title')) or (trigger.from_state.attributes.get('media_artist') if use_from else state_attr(wv_entity, 'media_artist')) or '') | string | trim }}"
+      artist: "{{ ((trigger.from_state.attributes.get('media_artist') if use_from else state_attr(wv_entity, 'media_artist')) or '') | string | trim }}"
   - variables:
       position: >-
         {% set base = (trigger.from_state.attributes.get('media_position') if use_from else state_attr(wv_entity, 'media_position')) | float(0) %}
@@ -108,6 +109,14 @@ actions:
             'nl.nlziet.app': 'nlziet',
             'com.apple.tv': 'appletv', 'com.apple.TVWatchList': 'appletv'} %}
         {{ m.get(app_id, 'appletv' if app_id.startswith('com.apple.') else '') }}
+  - variables:
+      ep_match: >-
+        {{ artist | regex_findall('(?i)S(?:eizoen|eason)?\s*(\d+)[,\s]*(?:afl\.?|ep\.?|aflevering|episode)\s*(\d+)\s*(.*)') if (platform == 'prime' and artist) else [] }}
+  - variables:
+      season: "{{ ep_match[0][0] if ep_match | length > 0 else '' }}"
+      episode: "{{ ep_match[0][1] if ep_match | length > 0 else '' }}"
+      episode_name: "{{ (ep_match[0][2] | trim) if ep_match | length > 0 else '' }}"
+      kind: "{{ 'series' if ep_match | length > 0 else kind }}"
   - condition: template
     value_template: "{{ title | length > 0 }}"
   - action: rest_command.watchvault_post
@@ -115,13 +124,16 @@ actions:
       url: "{{ wv_url }}"
       token: "{{ wv_token }}"
       payload: >-
-        {{ {'event': event, 'source': 'homeassistant', 'title': title,
-            'kind': kind,
-            'platform': platform, 'progress_percent': progress | float(0),
-            'position_seconds': position | int(0),
-            'duration_seconds': duration | int(0),
-            'dedup_key': ('appletv:' ~ content_id) if content_id else '',
-            'account': wv_account} | to_json }}
+        {{ ({'event': event, 'source': 'homeassistant', 'title': title,
+             'kind': kind,
+             'platform': platform, 'progress_percent': progress | float(0),
+             'position_seconds': position | int(0),
+             'duration_seconds': duration | int(0),
+             'dedup_key': ('appletv:' ~ content_id) if content_id else '',
+             'account': wv_account}
+            | combine({'season': season | int(0), 'episode': episode | int(0),
+                       'episode_name': episode_name}
+                      if (season != '' and episode != '') else {})) | to_json }}
   - action: logbook.log
     data:
       name: WatchVault
