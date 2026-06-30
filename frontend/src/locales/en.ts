@@ -166,6 +166,7 @@ const en = {
   "profiles.profileRemoved": "Profile removed",
   "profiles.howMembersJoin": "How members join",
   "profiles.howMembersJoinHelp": "An admin adds a member here and shares the one-time recovery code. The member opens WatchVault, picks “Use recovery code”, and creates their own passkey — no passwords anywhere.",
+  "profiles.openSettingsHelp": "Appearance, household, plugins, connections and more.",
 
   // ── Settings ────────────────────────────────────────────────────────────
   "settings.title": "Settings",
@@ -227,6 +228,14 @@ const en = {
   "title.couldntEnrich": "Couldn't enrich ({status})",
   "title.watchHistory": "Watch history",
   "title.noEvents": "No watch events for this profile.",
+  "title.episodes": "Episodes",
+  "title.seasonN": "Season {n}",
+  "title.specials": "Specials",
+  "title.episodeN": "Episode {n}",
+  "title.watched": "Watched",
+  "title.notWatched": "Not watched",
+  "title.watchedOn": "Watched {date}",
+  "title.watchedOfEpisodes": "{watched} of {total} episodes watched",
 
   // ── Person ──────────────────────────────────────────────────────────────
   "person.biography": "Biography",

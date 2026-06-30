@@ -74,6 +74,26 @@ class Plugin:
                          {"append_to_response": "credits,translations"})
         return self._normalize(data, "series") if data else None
 
+    def tv_season(self, tmdb_id: int, season_number: int) -> Optional[dict]:
+        """Full episode list for one season of a series."""
+        data = self._get(f"/tv/{tmdb_id}/season/{season_number}")
+        if not data:
+            return None
+        return {
+            "season_number": data.get("season_number"),
+            "name": data.get("name"),
+            "overview": data.get("overview"),
+            "poster_path": data.get("poster_path"),
+            "air_date": data.get("air_date") or None,
+            "episodes": [
+                {"episode_number": e.get("episode_number"), "name": e.get("name"),
+                 "overview": e.get("overview"), "air_date": e.get("air_date") or None,
+                 "runtime_minutes": e.get("runtime"), "still_path": e.get("still_path"),
+                 "tmdb_id": e.get("id"), "vote_average": e.get("vote_average")}
+                for e in data.get("episodes", [])
+            ],
+        }
+
     def person_details(self, tmdb_id: int) -> Optional[dict]:
         data = self._get(f"/person/{tmdb_id}", {"append_to_response": "translations"})
         return self._normalize_person(data) if data else None
@@ -119,7 +139,7 @@ class Plugin:
             runtime = data.get("runtime")
         base_lang = (self.language or "en")[:2]
         overviews = self._lang_map(data, base_lang)
-        return {
+        result = {
             "tmdb_id": data.get("id"),
             "title": data.get("title") or data.get("name"),
             "original_title": data.get("original_title") or data.get("original_name"),
@@ -135,6 +155,17 @@ class Plugin:
             "crew": crew,
             "authoritative": True,
         }
+        if kind == "series":
+            result["number_of_seasons"] = data.get("number_of_seasons")
+            result["number_of_episodes"] = data.get("number_of_episodes")
+            result["seasons"] = [
+                {"season_number": s.get("season_number"), "name": s.get("name"),
+                 "overview": s.get("overview"), "poster_path": s.get("poster_path"),
+                 "air_date": s.get("air_date") or None, "episode_count": s.get("episode_count")}
+                for s in data.get("seasons", [])
+                if s.get("season_number") is not None
+            ]
+        return result
 
     def _normalize_person(self, data: dict) -> dict:
         base_lang = (self.language or "en")[:2]

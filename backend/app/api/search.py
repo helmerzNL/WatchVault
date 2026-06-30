@@ -108,7 +108,8 @@ def title_detail(title_id: str):
     if t.get("enriched_at") is None:
         try:
             from ..plugins import enrich_title, runtime
-            if runtime.capability_providers("movie_details"):
+            detail_cap = "tv_details" if t["kind"] == "series" else "movie_details"
+            if runtime.capability_providers(detail_cap):
                 enrich_title(title_id)
                 t = query_one("SELECT * FROM titles WHERE id = %s", (title_id,)) or t
         except Exception:  # noqa: BLE001 — enrichment is best-effort
@@ -134,6 +135,8 @@ def title_detail(title_id: str):
         f"ORDER BY we.watched_date DESC LIMIT 200",
         (title_id, ids))
 
+    seasons = _series_seasons(title_id, t, ids) if t["kind"] == "series" else []
+
     overviews = t.get("overviews") or {}
     overview = overviews.get(lang) or t["overview"] or overviews.get("en")
     return jsonify({
@@ -144,6 +147,7 @@ def title_detail(title_id: str):
         "runtime_minutes": t["runtime_minutes"], "tmdb_id": t["tmdb_id"],
         "external_ids": t["external_ids"],
         "genres": [g["name"] for g in genres],
+        "seasons": seasons,
         "cast": [{"id": str(c["id"]), "name": c["name"], "character": c["character"],
                   "profile": poster_url(c["profile_path"], "w185")} for c in cast],
         "crew": [{"id": str(c["id"]), "name": c["name"], "job": c["job"],
@@ -155,3 +159,67 @@ def title_detail(title_id: str):
             for e in events
         ],
     })
+
+
+def _series_seasons(title_id: str, t: dict, ids: list[str]) -> list[dict]:
+    """Build the full season → episode tree with per-episode watched state for the
+    scoped users. Queues a one-off background backfill if the series has a TMDB id
+    but its episodes haven't been fetched yet (e.g. enriched before this feature)."""
+    eps = query_all(
+        "SELECT id, season, episode, name, overview, air_date, runtime_minutes, still_path "
+        "FROM title_episodes WHERE title_id = %s ORDER BY season, episode", (title_id,))
+
+    has_meta = any(e["still_path"] or e["overview"] or e["air_date"] for e in eps)
+    if t.get("tmdb_id") and (not eps or not has_meta):
+        _queue_episode_backfill(title_id)
+
+    watched = query_all(
+        "SELECT episode_id, season, episode, max(watched_date) AS last "
+        "FROM watch_events WHERE title_id = %s AND user_id = ANY(%s::uuid[]) "
+        "AND deleted_at IS NULL AND item_kind = 'episode' "
+        "GROUP BY episode_id, season, episode", (title_id, ids))
+    watched_ids: dict[str, str] = {}
+    watched_se: dict[tuple, str] = {}
+    for w in watched:
+        last = w["last"].isoformat() if w["last"] else None
+        if w["episode_id"]:
+            watched_ids[str(w["episode_id"])] = last
+        if w["episode"] is not None:
+            watched_se[(w["season"] or 0, w["episode"])] = last
+
+    by_season: dict[int, list] = {}
+    for e in eps:
+        last = watched_ids.get(str(e["id"])) or watched_se.get((e["season"] or 0, e["episode"]))
+        by_season.setdefault(e["season"] or 0, []).append({
+            "id": str(e["id"]), "episode": e["episode"], "name": e["name"],
+            "overview": e["overview"],
+            "air_date": e["air_date"].isoformat() if e["air_date"] else None,
+            "runtime_minutes": e["runtime_minutes"],
+            "still": poster_url(e["still_path"], "w300"),
+            "watched": last is not None, "last_watched": last,
+        })
+
+    seasons = []
+    for s in sorted(by_season):
+        items = by_season[s]
+        watched_n = sum(1 for i in items if i["watched"])
+        seasons.append({
+            "season": s, "episodes": items,
+            "episode_count": len(items), "watched_count": watched_n,
+        })
+    return seasons
+
+
+def _queue_episode_backfill(title_id: str) -> None:
+    from ..db import connection
+    import json as _json
+    try:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO background_jobs (kind, payload) "
+                "SELECT 'enrich_title', %s::jsonb WHERE NOT EXISTS ("
+                "  SELECT 1 FROM background_jobs WHERE kind = 'enrich_title' "
+                "  AND payload->>'title_id' = %s AND status = 'pending')",
+                (_json.dumps({"title_id": str(title_id)}), str(title_id)))
+    except Exception:  # noqa: BLE001 — backfill is best-effort
+        pass

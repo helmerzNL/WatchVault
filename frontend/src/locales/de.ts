@@ -166,6 +166,7 @@ const de = {
   "profiles.profileRemoved": "Profil entfernt",
   "profiles.howMembersJoin": "Wie Mitglieder beitreten",
   "profiles.howMembersJoinHelp": "Ein Admin fügt hier ein Mitglied hinzu und teilt den einmaligen Wiederherstellungscode. Das Mitglied öffnet WatchVault, wählt “Wiederherstellungscode verwenden” und erstellt einen eigenen Passkey — Passwörter gibt es nirgends.",
+  "profiles.openSettingsHelp": "Darstellung, Haushalt, Plug-ins, Verbindungen und mehr.",
 
   // ── Settings ────────────────────────────────────────────────────────────
   "settings.title": "Einstellungen",
@@ -227,6 +228,14 @@ const de = {
   "title.couldntEnrich": "Konnte nicht angereichert werden ({status})",
   "title.watchHistory": "Wiedergabeverlauf",
   "title.noEvents": "Keine Wiedergabeereignisse für dieses Profil.",
+  "title.episodes": "Folgen",
+  "title.seasonN": "Staffel {n}",
+  "title.specials": "Specials",
+  "title.episodeN": "Folge {n}",
+  "title.watched": "Gesehen",
+  "title.notWatched": "Nicht gesehen",
+  "title.watchedOn": "Gesehen am {date}",
+  "title.watchedOfEpisodes": "{watched} von {total} Folgen gesehen",
 
   // ── Person ──────────────────────────────────────────────────────────────
   "person.biography": "Biografie",

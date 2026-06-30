@@ -3,8 +3,8 @@ import { useApp } from "../lib/app";
 import { useT, useGenre } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
-import { Loading, ErrorState } from "../components/ui";
-import { IconSparkles, IconChevron } from "../components/icons";
+import { Loading, ErrorState, BackLink } from "../components/ui";
+import { IconSparkles, IconCheck } from "../components/icons";
 import { fmtDate } from "../lib/format";
 import { useState } from "react";
 
@@ -21,6 +21,76 @@ function PersonCard({ c }: { c: any }) {
   return c.id
     ? <Link to={`/person/${c.id}`} className="cast-card" style={{ textDecoration: "none" }}>{inner}</Link>
     : <div className="cast-card">{inner}</div>;
+}
+
+function EpisodeRow({ ep }: { ep: any }) {
+  const { t } = useT();
+  const meta: string[] = [];
+  if (ep.air_date) meta.push(fmtDate(ep.air_date));
+  if (ep.runtime_minutes) meta.push(t("title.min", { n: ep.runtime_minutes }));
+  return (
+    <div className={`episode-row ${ep.watched ? "is-watched" : ""}`}>
+      <div className="episode-still">
+        {ep.still ? <img src={ep.still} alt="" loading="lazy" /> : <span className="episode-still-ph">{ep.episode}</span>}
+        {ep.watched && <span className="episode-check" title={t("title.watched")}><IconCheck width={14} height={14} /></span>}
+      </div>
+      <div className="episode-body">
+        <div className="episode-head">
+          <span className="episode-num">{ep.episode}</span>
+          <strong className="episode-name">{ep.name || t("title.episodeN", { n: ep.episode })}</strong>
+        </div>
+        {meta.length > 0 && <span className="caption">{meta.join(" · ")}</span>}
+        {ep.overview && <p className="episode-overview">{ep.overview}</p>}
+        <span className={`episode-status ${ep.watched ? "on" : ""}`}>
+          {ep.watched
+            ? (ep.last_watched ? t("title.watchedOn", { date: fmtDate(ep.last_watched) }) : t("title.watched"))
+            : t("title.notWatched")}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Seasons({ seasons }: { seasons: any[] }) {
+  const { t } = useT();
+  const [active, setActive] = useState(seasons[0]?.season ?? 0);
+  const current = seasons.find((s) => s.season === active) || seasons[0];
+  if (!current) return null;
+  const pct = current.episode_count ? Math.round((current.watched_count / current.episode_count) * 100) : 0;
+
+  return (
+    <>
+      <h2 className="title" style={{ margin: "28px 0 14px" }}>{t("title.episodes")}</h2>
+      {seasons.length > 1 && (
+        <div className="season-tabs">
+          {seasons.map((s) => (
+            <button key={s.season}
+              className={`chip ${s.season === active ? "active" : ""}`}
+              onClick={() => setActive(s.season)}>
+              {s.season === 0 ? t("title.specials") : t("title.seasonN", { n: s.season })}
+              <span className="season-tab-count">{s.watched_count}/{s.episode_count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="card season-panel">
+        <div className="season-progress">
+          <div className="row" style={{ gap: 10 }}>
+            <strong>{current.season === 0 ? t("title.specials") : t("title.seasonN", { n: current.season })}</strong>
+            <span className="caption">{t("title.watchedOfEpisodes", { watched: current.watched_count, total: current.episode_count })}</span>
+            <div className="spacer" style={{ flex: 1 }} />
+            <span className="caption" style={{ fontWeight: 700, color: "var(--accent)" }}>{pct}%</span>
+          </div>
+          <div className="bar-track" style={{ marginTop: 8 }}>
+            <div className="bar-fill" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+        <div className="episode-list">
+          {current.episodes.map((ep: any) => <EpisodeRow key={ep.id} ep={ep} />)}
+        </div>
+      </div>
+    </>
+  );
 }
 
 export function TitleDetail() {
@@ -49,9 +119,7 @@ export function TitleDetail() {
 
   return (
     <>
-      <Link to="/search" className="btn-ghost btn-sm" style={{ marginBottom: 16 }}>
-        <IconChevron width={16} height={16} style={{ transform: "rotate(180deg)" }} /> {t("common.back")}
-      </Link>
+      <BackLink />
 
       <div className="title-hero card" style={ti.backdrop ? {
         backgroundImage: `linear-gradient(to top, var(--bg-elev), rgba(0,0,0,0.1)), url(${ti.backdrop})`,
@@ -80,6 +148,8 @@ export function TitleDetail() {
           <IconSparkles width={16} height={16} /> {enriching ? t("title.enriching") : t("title.enrichTmdb")}
         </button>
       )}
+
+      {ti.kind === "series" && ti.seasons?.length > 0 && <Seasons seasons={ti.seasons} />}
 
       {ti.cast?.length > 0 && (
         <>

@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { enqueueEnrich } from "../lib/lazyEnrich";
-import { IconFilm, IconTv } from "./icons";
+import { IconFilm, IconTv, IconChevron } from "./icons";
 
 export function Loading({ label }: { label?: string }) {
   const { t } = useT();
@@ -13,6 +13,16 @@ export function Loading({ label }: { label?: string }) {
       <div className="spinner" />
       <div className="muted">{label ?? t("common.loading")}</div>
     </div>
+  );
+}
+
+export function BackLink({ to = "/search", label }: { to?: string; label?: string }) {
+  const { t } = useT();
+  return (
+    <Link to={to} className="btn-back">
+      <IconChevron width={18} height={18} style={{ transform: "rotate(180deg)" }} />
+      <span>{label ?? t("common.back")}</span>
+    </Link>
   );
 }
 

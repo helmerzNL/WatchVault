@@ -10,9 +10,35 @@ from __future__ import annotations
 
 import json
 
-from ..catalog import apply_person_details, apply_title_details
+from ..catalog import apply_person_details, apply_title_details, upsert_episode
 from ..db import connection
 from . import runtime
+
+
+def _populate_episodes(plugin, title_id: str, tmdb_id: int, seasons: list) -> int:
+    """Fetch every season's episode list from the provider and upsert them so the
+    full series structure (watched or not) is browsable. Network calls happen
+    first, then a single transaction writes the rows."""
+    if not tmdb_id or not seasons or not hasattr(plugin, "tv_season"):
+        return 0
+    fetched: list[tuple[int, list]] = []
+    for s in seasons:
+        sn = s.get("season_number")
+        if sn is None:
+            continue
+        season = plugin.tv_season(tmdb_id, sn)
+        if season and season.get("episodes"):
+            fetched.append((sn, season["episodes"]))
+    if not fetched:
+        return 0
+    count = 0
+    with connection() as conn, conn.cursor() as cur:
+        for sn, episodes in fetched:
+            for ep in episodes:
+                ep["season_number"] = sn
+                upsert_episode(cur, title_id, ep)
+                count += 1
+    return count
 
 
 def enrich_title(title_id: str) -> dict:
@@ -31,6 +57,8 @@ def enrich_title(title_id: str) -> dict:
 
     details = None
     source = None
+    matched_plugin = None
+    matched_tmdb_id = None
     for pid in providers:
         try:
             plugin = runtime.get_plugin(pid)
@@ -49,6 +77,8 @@ def enrich_title(title_id: str) -> dict:
                    else plugin.movie_details(tmdb_id))
         if details:
             source = pid
+            matched_plugin = plugin
+            matched_tmdb_id = details.get("tmdb_id") or tmdb_id
             break
 
     if not details:
@@ -67,8 +97,13 @@ def enrich_title(title_id: str) -> dict:
                 "INSERT INTO background_jobs (kind, payload) VALUES ('enrich_person', %s::jsonb)",
                 (json.dumps({"person_id": pid_}),))
 
+    episodes = 0
+    if kind == "series":
+        episodes = _populate_episodes(
+            matched_plugin, title_id, matched_tmdb_id, details.get("seasons") or [])
+
     return {"status": "enriched", "source": source, "tmdb_id": details.get("tmdb_id"),
-            "people_queued": len(person_ids)}
+            "people_queued": len(person_ids), "episodes": episodes}
 
 
 def enrich_person(person_id: str) -> dict:

@@ -1,10 +1,9 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
-import { Loading, ErrorState, Poster } from "../components/ui";
-import { IconChevron } from "../components/icons";
+import { Loading, ErrorState, Poster, BackLink } from "../components/ui";
 import { fmtDate } from "../lib/format";
 
 export function Person() {
@@ -24,9 +23,7 @@ export function Person() {
 
   return (
     <>
-      <Link to="/search" className="btn-ghost btn-sm" style={{ marginBottom: 16 }}>
-        <IconChevron width={16} height={16} style={{ transform: "rotate(180deg)" }} /> {t("common.back")}
-      </Link>
+      <BackLink />
 
       <div className="card">
         <div className="row" style={{ gap: 20, alignItems: "flex-start" }}>
