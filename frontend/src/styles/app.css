@@ -324,7 +324,7 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 }
 .month-nav-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 8px;
+  width: 30px; height: 30px; min-height: 0; padding: 0; border-radius: 8px;
   background: transparent; color: var(--accent);
   transition: background .15s ease, transform .1s ease, opacity .1s ease;
 }
