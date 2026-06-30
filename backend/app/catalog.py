@@ -118,6 +118,8 @@ def apply_title_details(cur, title_id: str, details: dict, source: str) -> None:
     meta_update = {"updated_by": source}
     if details.get("networks"):
         meta_update["networks"] = details["networks"]
+    if details.get("release_date"):
+        meta_update["release_date"] = details["release_date"]
     cur.execute(
         "UPDATE titles SET "
         "  original_title  = COALESCE(original_title, %s), "

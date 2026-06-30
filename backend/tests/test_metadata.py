@@ -235,6 +235,8 @@ def test_tmdb_movie_has_no_networks():
         {"id": 1, "title": "X", "release_date": "2020-01-01", "runtime": 90,
          "genres": [], "credits": {"cast": [], "crew": []}}, "movie")
     assert "networks" not in details
+    # The full release date is captured (used for the "Release date" quick-pick).
+    assert details["release_date"] == "2020-01-01"
 
 
 class _FakeCursor:

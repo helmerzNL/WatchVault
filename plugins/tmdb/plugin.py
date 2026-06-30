@@ -146,6 +146,7 @@ class Plugin:
             "overview": overviews.get("en") or data.get("overview"),
             "overviews": overviews,
             "year": int(year) if year.isdigit() else None,
+            "release_date": data.get("release_date") or data.get("first_air_date") or None,
             "runtime_minutes": runtime,
             "poster_path": data.get("poster_path"),
             "backdrop_path": data.get("backdrop_path"),
