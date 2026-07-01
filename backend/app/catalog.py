@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 
+from .genres import canonical_genre
 from .util import normalize_text
 
 # Languages we capture/translate content into (kept in sync with the frontend).
@@ -40,10 +41,12 @@ def set_provenance(cur, entity_type: str, entity_id: str, field: str,
 
 
 def upsert_genre(cur, name: str) -> int:
+    # Normalize provider-localized/variant names ("Misdaad" -> "Crime") onto a
+    # single canonical English row so the genre list has no language duplicates.
     cur.execute(
         "INSERT INTO genres (name) VALUES (%s) "
         "ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id",
-        (name.strip(),),
+        (canonical_genre(name),),
     )
     return cur.fetchone()["id"]
 
