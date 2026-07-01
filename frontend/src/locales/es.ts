@@ -299,6 +299,8 @@ const es = {
   "settings.addPasskey": "Añadir otro passkey",
   "settings.passkeyAdded": "Passkey añadido",
   "settings.passkeys": "Passkeys",
+  "settings.security": "Seguridad",
+  "settings.passkeyNamePlaceholder": "Nombre (p. ej. iPhone de Jan)",
   "settings.passkeysHelp": "Passkeys que puedes usar para iniciar sesión en esta cuenta. No puedes eliminar la última.",
   "settings.deletePasskey": "Eliminar",
   "settings.deletePasskeyConfirm": "¿Eliminar esta passkey?",

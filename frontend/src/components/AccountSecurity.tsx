@@ -20,8 +20,7 @@ export function AccountSecurity() {
   return (
     <>
       <ApiTokens />
-      <Passkeys />
-      <RecoveryCodes />
+      <Security />
     </>
   );
 }
@@ -77,15 +76,18 @@ function ApiTokens() {
   );
 }
 
-function Passkeys() {
+function Security() {
   const { toast } = useApp();
   const { t } = useT();
   const passkeys = useFetch<PasskeyInfo[]>(() => listPasskeys(), []);
+  const [pkName, setPkName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [regenBusy, setRegenBusy] = useState(false);
 
   async function add() {
     setBusy(true);
-    try { await addPasskey(); toast(t("settings.passkeyAdded")); passkeys.reload(); }
+    try { await addPasskey(pkName.trim() || undefined); setPkName(""); toast(t("settings.passkeyAdded")); passkeys.reload(); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
     finally { setBusy(false); }
   }
@@ -94,13 +96,22 @@ function Passkeys() {
     try { await deletePasskey(id); passkeys.reload(); }
     catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
   }
+  async function regenerate() {
+    if (!confirm(t("settings.regenerateConfirm"))) return;
+    setRegenBusy(true);
+    try { setCodes(await regenerateRecoveryCodes()); }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+    finally { setRegenBusy(false); }
+  }
 
   const items = passkeys.data || [];
   const canDelete = items.length > 1;
   return (
-    <Section title={t("settings.passkeys")}>
-      <div className="card">
-        <p className="caption" style={{ marginBottom: 14 }}>{t("settings.passkeysHelp")}</p>
+    <Section title={t("settings.security")}>
+      <div className="card col" style={{ gap: 0 }}>
+        {/* Passkeys */}
+        <span className="headline">{t("settings.passkeys")}</span>
+        <p className="caption" style={{ margin: "6px 0 14px" }}>{t("settings.passkeysHelp")}</p>
         {items.map((pk) => (
           <div key={pk.id} className="list-row">
             <div className="col" style={{ flex: 1, gap: 2 }}>
@@ -118,33 +129,24 @@ function Passkeys() {
         ))}
         {passkeys.data && items.length === 0 && <p className="muted">{t("settings.noPasskeys")}</p>}
         {passkeysSupported() && (
-          <button className="btn-ghost" style={{ marginTop: 14 }} disabled={busy} onClick={add}>
-            {t("settings.addPasskey")}
-          </button>
+          <div className="row" style={{ gap: 10, marginTop: 14 }}>
+            <input
+              value={pkName}
+              onChange={(e) => setPkName(e.target.value)}
+              placeholder={t("settings.passkeyNamePlaceholder")}
+              onKeyDown={(e) => { if (e.key === "Enter" && !busy) add(); }}
+            />
+            <button className="btn-ghost" style={{ flexShrink: 0 }} disabled={busy} onClick={add}>
+              {t("settings.addPasskey")}
+            </button>
+          </div>
         )}
-      </div>
-    </Section>
-  );
-}
 
-function RecoveryCodes() {
-  const { toast } = useApp();
-  const { t } = useT();
-  const [codes, setCodes] = useState<string[] | null>(null);
-  const [busy, setBusy] = useState(false);
+        <hr className="divider" style={{ margin: "20px 0" }} />
 
-  async function regenerate() {
-    if (!confirm(t("settings.regenerateConfirm"))) return;
-    setBusy(true);
-    try { setCodes(await regenerateRecoveryCodes()); }
-    catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <Section title={t("settings.recoveryCodes")}>
-      <div className="card">
-        <p className="caption" style={{ marginBottom: 14 }}>{t("settings.recoveryCodesHelp")}</p>
+        {/* Recovery codes */}
+        <span className="headline">{t("settings.recoveryCodes")}</span>
+        <p className="caption" style={{ margin: "6px 0 14px" }}>{t("settings.recoveryCodesHelp")}</p>
         {codes && (
           <div className="card" style={{ marginBottom: 14, borderColor: "var(--accent)", background: "var(--bg)" }}>
             <span className="caption">{t("settings.recoveryCodesWarn")}</span>
@@ -156,8 +158,8 @@ function RecoveryCodes() {
             </button>
           </div>
         )}
-        <button className="btn-ghost" disabled={busy} onClick={regenerate}>
-          {busy ? "…" : t("settings.regenerateCodes")}
+        <button className="btn-ghost" style={{ alignSelf: "flex-start" }} disabled={regenBusy} onClick={regenerate}>
+          {regenBusy ? "…" : t("settings.regenerateCodes")}
         </button>
       </div>
     </Section>

@@ -299,6 +299,8 @@ const nl = {
   "settings.addPasskey": "Nog een passkey toevoegen",
   "settings.passkeyAdded": "Passkey toegevoegd",
   "settings.passkeys": "Passkeys",
+  "settings.security": "Beveiliging",
+  "settings.passkeyNamePlaceholder": "Naam (bijv. iPhone van Jan)",
   "settings.passkeysHelp": "Passkeys waarmee je op dit account kunt inloggen. De laatste kun je niet verwijderen.",
   "settings.deletePasskey": "Verwijderen",
   "settings.deletePasskeyConfirm": "Deze passkey verwijderen?",
