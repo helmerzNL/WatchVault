@@ -63,6 +63,7 @@ const es = {
   "dashboard.noHistory": "Aún no hay historial de visualización. Importa un CSV de Netflix o conecta Plex/Jellyfin para empezar a crear el baúl de tu hogar.",
   "dashboard.importHistory": "Importar historial",
   "dashboard.overviewFor": "Un resumen para {scope}",
+  "dashboard.overviewOf": "de {name}",
   "dashboard.theHousehold": "el hogar",
   "dashboard.thisProfile": "este perfil",
   "dashboard.totalWatchTime": "Tiempo total de visualización",

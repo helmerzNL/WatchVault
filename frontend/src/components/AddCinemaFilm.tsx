@@ -4,7 +4,7 @@ import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { todayLocalKey, localDateKey, fmtDate } from "../lib/format";
-import { IconPlus, IconClose, IconSearch, IconFilm } from "./icons";
+import { IconClose, IconSearch, IconFilm } from "./icons";
 
 interface Hit {
   tmdb_id: number;
@@ -31,9 +31,9 @@ export function AddCinemaFilmButton({ variant = "primary" }: { variant?: "primar
   const cls = variant === "primary" ? "btn-primary" : variant === "block" ? "btn" : "btn-ghost";
   return (
     <>
-      <button className={`${cls} row`} style={{ gap: 8 }} onClick={() => setOpen(true)}>
-        <IconPlus width={18} height={18} />
-        {t("cinema.add")}
+      <button className={`${cls} btn-sm`} onClick={() => setOpen(true)}
+        title={t("cinema.add")} aria-label={t("cinema.add")}>
+        <IconFilm width={18} height={18} />
       </button>
       {open && <AddCinemaFilmModal onClose={() => setOpen(false)} />}
     </>

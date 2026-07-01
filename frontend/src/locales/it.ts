@@ -63,6 +63,7 @@ const it = {
   "dashboard.noHistory": "Non c'è ancora cronologia di visione. Importa un CSV di Netflix o collega Plex/Jellyfin per iniziare a costruire il vault della tua famiglia.",
   "dashboard.importHistory": "Importa cronologia",
   "dashboard.overviewFor": "Una panoramica per {scope}",
+  "dashboard.overviewOf": "di {name}",
   "dashboard.theHousehold": "la famiglia",
   "dashboard.thisProfile": "questo profilo",
   "dashboard.totalWatchTime": "Tempo di visione totale",

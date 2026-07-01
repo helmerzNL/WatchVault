@@ -63,6 +63,7 @@ const de = {
   "dashboard.noHistory": "Noch kein Wiedergabeverlauf. Importiere eine Netflix-CSV oder verbinde Plex/Jellyfin, um den Tresor deines Haushalts aufzubauen.",
   "dashboard.importHistory": "Verlauf importieren",
   "dashboard.overviewFor": "Eine Übersicht für {scope}",
+  "dashboard.overviewOf": "von {name}",
   "dashboard.theHousehold": "den Haushalt",
   "dashboard.thisProfile": "dieses Profil",
   "dashboard.totalWatchTime": "Gesamte Wiedergabezeit",

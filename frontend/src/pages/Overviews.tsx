@@ -8,7 +8,7 @@ import { TrendArea, StackedBars } from "../components/charts";
 import { Heatmap } from "../components/Heatmap";
 import { Loading, ErrorState, Poster, Section, Seg, MonthNav, RangeSeg, type Range } from "../components/ui";
 import { fmtDate, fmtHours, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
-import { IconLayout, IconCheck } from "../components/icons";
+import { IconLayout, IconCheck, IconRefresh } from "../components/icons";
 import { resolveLayout, EditBlock } from "../components/LayoutEdit";
 
 type Gran = "day" | "week" | "month";
@@ -281,7 +281,10 @@ export function Overviews() {
       <div className="section-head" style={{ marginTop: 0 }}>
         <h1 className="large-title" style={{ margin: 0 }}>{t("overviews.title")}</h1>
         <div className="spacer" style={{ flex: 1 }} />
-        {editing && <button className="btn-ghost btn-sm" onClick={restoreDefault}>{t("dashboard.restoreDefault")}</button>}
+        {editing && <button className="btn-ghost btn-sm" onClick={restoreDefault}
+          title={t("dashboard.restoreDefault")} aria-label={t("dashboard.restoreDefault")}>
+          <IconRefresh width={18} height={18} />
+        </button>}
         <button className={`btn-ghost btn-sm dash-edit-toggle ${editing ? "is-active" : ""}`} onClick={() => setEditing((e) => !e)}
           title={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}
           aria-label={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}>

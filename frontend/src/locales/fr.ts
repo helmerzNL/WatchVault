@@ -63,6 +63,7 @@ const fr = {
   "dashboard.noHistory": "Aucun historique de visionnage pour le moment. Importez un CSV Netflix ou connectez Plex/Jellyfin pour commencer à remplir le coffre de votre foyer.",
   "dashboard.importHistory": "Importer l'historique",
   "dashboard.overviewFor": "Un aperçu pour {scope}",
+  "dashboard.overviewOf": "de {name}",
   "dashboard.theHousehold": "le foyer",
   "dashboard.thisProfile": "ce profil",
   "dashboard.totalWatchTime": "Temps de visionnage total",

@@ -7,7 +7,7 @@ import { useFetch } from "../lib/useFetch";
 import { Spark } from "../components/charts";
 import { Loading, ErrorState, Empty, Stat, Poster, Section, MonthNav, RangeSeg, Seg, type Range } from "../components/ui";
 import { fmtHours, fmtNum, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
-import { IconChart, IconImport, IconLayout, IconCheck } from "../components/icons";
+import { IconChart, IconImport, IconLayout, IconCheck, IconRefresh } from "../components/icons";
 import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
 import { resolveLayout, EditBlock } from "../components/LayoutEdit";
 
@@ -21,7 +21,7 @@ type BlockId = "nowPlaying" | "unfinished" | "stats" | "trend" | "platforms" | "
 const DEFAULT_ORDER: BlockId[] = ["nowPlaying", "unfinished", "stats", "trend", "platforms", "monthly"];
 
 export function Dashboard() {
-  const { scope, user, prefs, savePrefs } = useApp();
+  const { scope, user, profiles, prefs, savePrefs } = useApp();
   const { t } = useT();
   const [range, setRange] = useState<Range>("all");
   const [recentRange, setRecentRange] = useState<RecentRange>("month");
@@ -53,7 +53,9 @@ export function Dashboard() {
   const recentTitle = recentRange === "week" ? "dashboard.last7"
     : recentRange === "year" ? "dashboard.last12m" : "dashboard.last30";
 
-  const scopeName = scope === "all" ? t("dashboard.theHousehold") : t("dashboard.thisProfile");
+  const scopeName = scope === "all"
+    ? (user?.household_name || t("dashboard.theHousehold"))
+    : (profiles.find((p) => p.id === scope)?.display_name || t("dashboard.thisProfile"));
 
   const blocks: Record<BlockId, { labelKey: string; expert?: boolean; node: ReactNode }> = {
     nowPlaying: { labelKey: "dashboard.blockNowPlaying", expert: true, node: <NowPlaying scope={scope} /> },
@@ -141,10 +143,13 @@ export function Dashboard() {
       <div className="section-head">
         <div className="col" style={{ gap: 2 }}>
           <h1 className="large-title">{t("nav.dashboard")}</h1>
-          <span className="muted">{t("dashboard.overviewFor", { scope: scopeName })}</span>
+          <span className="muted">{t("dashboard.overviewOf", { name: scopeName })}</span>
         </div>
         <div className="spacer" style={{ flex: 1 }} />
-        {editing && <button className="btn-ghost btn-sm" onClick={restoreDefault}>{t("dashboard.restoreDefault")}</button>}
+        {editing && <button className="btn-ghost btn-sm" onClick={restoreDefault}
+          title={t("dashboard.restoreDefault")} aria-label={t("dashboard.restoreDefault")}>
+          <IconRefresh width={18} height={18} />
+        </button>}
         <button className={`btn-ghost btn-sm dash-edit-toggle ${editing ? "is-active" : ""}`} onClick={() => setEditing((e) => !e)}
           title={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}
           aria-label={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}>

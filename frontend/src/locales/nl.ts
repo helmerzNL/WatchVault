@@ -63,6 +63,7 @@ const nl = {
   "dashboard.noHistory": "Nog geen kijkgeschiedenis. Importeer een Netflix-CSV of koppel Plex/Jellyfin om de kluis van je huishouden op te bouwen.",
   "dashboard.importHistory": "Geschiedenis importeren",
   "dashboard.overviewFor": "Een overzicht voor {scope}",
+  "dashboard.overviewOf": "van {name}",
   "dashboard.theHousehold": "het huishouden",
   "dashboard.thisProfile": "dit profiel",
   "dashboard.totalWatchTime": "Totale kijktijd",
