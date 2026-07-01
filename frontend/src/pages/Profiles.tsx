@@ -231,8 +231,6 @@ export function Profiles() {
         </div>
       </Section>
 
-      <AccountSecurity />
-
       <div className="card" style={{ marginTop: 20 }}>
         <div className="row">
           <IconUsers width={20} height={20} />
@@ -255,6 +253,8 @@ export function Profiles() {
           <IconChevron width={18} height={18} />
         </div>
       </Link>
+
+      <AccountSecurity />
     </>
   );
 }
