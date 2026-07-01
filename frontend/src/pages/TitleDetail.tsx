@@ -470,7 +470,10 @@ export function TitleDetail() {
               {ti.year && <span className="chip" style={{ minHeight: 0, padding: "2px 10px" }}>{ti.year}</span>}
               {ti.runtime_minutes && <span className="chip" style={{ minHeight: 0, padding: "2px 10px" }}>{t("title.min", { n: ti.runtime_minutes })}</span>}
             </div>
-            <div className="chips">{ti.genres?.map((g: string) => <span key={g} className="chip">{tGenre(g)}</span>)}</div>
+            <div className="chips">{ti.genres?.map((g: string) => (
+              <Link key={g} to={`/search?genre=${encodeURIComponent(g)}&kind=${ti.kind}`} className="chip"
+                style={{ color: "inherit", textDecoration: "none" }}>{tGenre(g)}</Link>
+            ))}</div>
             {ti.networks?.length > 0 && (
               <div className="chips" style={{ alignItems: "center" }}>
                 <span className="caption" style={{ marginRight: 2 }}>{t("title.network")}:</span>
