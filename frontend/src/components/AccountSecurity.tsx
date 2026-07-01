@@ -13,14 +13,15 @@ import {
   type PasskeyInfo,
 } from "../lib/auth";
 import { Section } from "./ui";
+import { IconChevron } from "./icons";
 
 /** Personal account-security sections for the logged-in user:
- *  API tokens (MCP), passkeys, and recovery codes. */
+ *  passkeys + recovery codes, and API tokens (MCP). */
 export function AccountSecurity() {
   return (
     <>
-      <ApiTokens />
       <Security />
+      <ApiTokens />
     </>
   );
 }
@@ -28,6 +29,7 @@ export function AccountSecurity() {
 function ApiTokens() {
   const { toast } = useApp();
   const { t } = useT();
+  const [open, setOpen] = useState(false);
   const tokens = useFetch<any[]>(() => api.get("/tokens"), []);
   const [name, setName] = useState("");
   const [fresh, setFresh] = useState<string | null>(null);
@@ -44,7 +46,15 @@ function ApiTokens() {
   }
 
   return (
-    <Section title={t("settings.tokens")}>
+    <Section title={t("settings.tokens")}
+      right={
+        <button className="btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}
+          aria-expanded={open} aria-label={open ? t("common.collapse") : t("common.expand")}>
+          <IconChevron width={16} height={16}
+            style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)" }} />
+        </button>
+      }>
+      {open && (
       <div className="card">
         <p className="caption" style={{ marginBottom: 14 }}>
           {t("settings.tokensHelp")}
@@ -72,6 +82,7 @@ function ApiTokens() {
         ))}
         {tokens.data && tokens.data.length === 0 && <p className="muted">{t("settings.noTokens")}</p>}
       </div>
+      )}
     </Section>
   );
 }
