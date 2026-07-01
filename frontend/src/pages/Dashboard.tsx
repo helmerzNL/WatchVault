@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Spark } from "../components/charts";
 import { Loading, ErrorState, Empty, Stat, Poster, Section, MonthNav, RangeSeg, Seg, type Range } from "../components/ui";
-import { fmtHours, fmtNum, fmtMonth, fmtDayMonth, fmtDate, monthKey, monthLabel } from "../lib/format";
+import { fmtHours, fmtNum, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
 import { IconChart, IconImport, IconEye, IconEyeOff, IconChevron } from "../components/icons";
 import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
 
@@ -63,6 +63,8 @@ export function Dashboard() {
           <Stat value={fmtNum(s.totals.titles)} label={t("dashboard.uniqueTitles")} />
           <Stat value={fmtNum(s.totals.movies)} label={t("common.movies")} />
           <Stat value={fmtNum(s.totals.episodes)} label={t("common.episodes")} />
+          {prefs.expert && <Stat value={fmtHours((s.totals.remaining_minutes || 0) / 60)} label={t("dashboard.stillToWatch")} />}
+          {prefs.expert && <Stat value={fmtNum(s.totals.remaining_items || 0)} label={t("dashboard.itemsUnfinished")} />}
         </div>
       ),
     },
@@ -208,44 +210,33 @@ function EditBlock({ label, hidden, first, last, onUp, onDown, onToggle, childre
 }
 
 // Titles started but not finished — the precomputed "still watching" tracker
-// (Expert mode). Series show watched/total episodes with a progress bar; movies
-// show a film badge. Renders nothing above a Section header when empty.
+// (Expert mode). Rendered as a compact poster grid (identical rhythm to the
+// monthly grid so it lines up with the other blocks). Each poster's subtitle
+// says what's left: movies show minutes-left + percent watched; series show
+// episodes-left + the total time those episodes represent.
 function UnfinishedTitles({ scope }: { scope: string }) {
   const { t } = useT();
   const { data, loading, error, reload } = useFetch<any[]>(
     () => api.get("/stats/unfinished", { profile: scope }), [scope]);
 
+  const subtitle = (u: any): string => {
+    const minLeft = u.remaining_minutes != null ? t("dashboard.minLeft", { min: u.remaining_minutes }) : null;
+    const parts = u.kind === "movie"
+      ? [minLeft, t("dashboard.pctWatched", { pct: u.progress ?? 0 })]
+      : [t("dashboard.epsLeft", { eps: u.remaining_episodes ?? 0 }), minLeft];
+    return parts.filter(Boolean).join(" · ");
+  };
+
   return (
     <Section title={t("dashboard.unfinished")}>
       {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
         data && data.length ? (
-          <div className="card unfinished-list">
-            {data.map((u: any) => {
-              const total = u.total_episodes || 0;
-              const watched = u.watched_episodes || 0;
-              const pct = total ? Math.round((watched / total) * 100) : 0;
-              return (
-                <Link key={u.id} to={`/title/${u.id}`} className="unfinished-row">
-                  <div className="unfinished-poster">
-                    {u.poster ? <img src={u.poster} alt="" loading="lazy" /> : <div className="ph" />}
-                  </div>
-                  <div className="col" style={{ flex: 1, minWidth: 0, gap: 5 }}>
-                    <strong className="unfinished-title">{u.title}</strong>
-                    <span className="caption">
-                      {u.kind === "movie" ? t("common.film")
-                        : t("dashboard.epProgress", { watched, total })}
-                      {u.last_activity ? ` · ${fmtDate(u.last_activity)}` : ""}
-                    </span>
-                    {u.kind !== "movie" && total > 0 && (
-                      <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
-                    )}
-                  </div>
-                  {u.kind !== "movie" && total > 0 && (
-                    <span className="caption unfinished-count">{watched}/{total}</span>
-                  )}
-                </Link>
-              );
-            })}
+          <div className="poster-grid">
+            {data.map((u: any) => (
+              <Poster key={u.id} to={`/title/${u.id}`} poster={u.poster} title={u.title} kind={u.kind}
+                enrichId={u.id} subtitle={subtitle(u)}
+                badge={u.kind === "movie" ? t("common.film") : t("common.series")} />
+            ))}
           </div>
         ) : <p className="muted">{t("dashboard.unfinishedEmpty")}</p>}
     </Section>

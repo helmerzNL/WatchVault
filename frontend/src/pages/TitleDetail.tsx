@@ -231,7 +231,9 @@ function LiveNowBar({ live, compact }: { live: any; compact?: boolean }) {
       <div className="live-now-head">
         <span className={`live-dot ${dotClass}`} />
         <span className="live-now-label">{label}</span>
-        <span className="caption" style={{ marginLeft: "auto" }}>{state} · {Math.round(pct)}%</span>
+        <span className="caption" style={{ marginLeft: "auto" }}>
+          {state} · {Math.round(pct)}%{stopped && live.updated_at ? ` · ${fmtDate(live.updated_at)}` : ""}
+        </span>
       </div>
       <div className="bar-track">
         <div className="bar-fill" style={{ width: `${pct}%`, background: live.provider_color || "var(--accent)" }} />
