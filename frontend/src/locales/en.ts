@@ -63,6 +63,7 @@ const en = {
   "dashboard.noHistory": "No watch history yet. Import a Netflix CSV or connect Plex/Jellyfin to start building your household's vault.",
   "dashboard.importHistory": "Import history",
   "dashboard.overviewFor": "An overview for {scope}",
+  "dashboard.overviewOf": "of {name}",
   "dashboard.theHousehold": "the household",
   "dashboard.thisProfile": "this profile",
   "dashboard.totalWatchTime": "Total watch time",
