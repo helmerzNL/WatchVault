@@ -35,7 +35,9 @@ def scope_user_ids(profile: str | None = None) -> list[str]:
 def poster_url(path: str | None, size: str = "w342") -> str | None:
     if not path:
         return None
-    if path.startswith("http"):
+    # Local uploads (e.g. avatars) are already absolute app URLs — serve as-is.
+    # TMDB poster paths also start with "/", so match the media prefix specifically.
+    if path.startswith("http") or path.startswith("/api/media/"):
         return path
     return f"{TMDB_IMAGE_BASE}/{size}{path}"
 

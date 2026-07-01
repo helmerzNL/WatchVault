@@ -45,6 +45,8 @@ export interface Prefs {
 export interface Profile {
   id: string;
   display_name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   avatar?: string | null;
   accent_color?: string | null;
   is_admin: boolean;

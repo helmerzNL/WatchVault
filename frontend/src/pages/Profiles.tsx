@@ -5,7 +5,7 @@ import { useT } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, Section } from "../components/ui";
-import { IconPlus, IconUsers, IconSettings, IconChevron } from "../components/icons";
+import { IconPlus, IconUsers, IconSettings, IconChevron, IconPencil } from "../components/icons";
 import { initials, fmtNum, fmtDate, ACCENTS } from "../lib/format";
 
 export function Profiles() {
@@ -18,6 +18,75 @@ export function Profiles() {
   const [newCode, setNewCode] = useState<{ name: string; code: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [form, setForm] = useState({ first_name: "", last_name: "", accent_color: "" });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function openEdit(p: any) {
+    if (editing === p.id) { closeEdit(); return; }
+    setEditing(p.id);
+    setForm({
+      first_name: p.first_name || "",
+      last_name: p.last_name || "",
+      accent_color: p.accent_color || "",
+    });
+    setAvatarFile(null);
+    setAvatarPreview(null);
+  }
+
+  function closeEdit() {
+    setEditing(null);
+    setAvatarFile(null);
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarPreview(null);
+  }
+
+  function pickAvatar(f: File | null) {
+    if (!f) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) {
+      toast(t("profiles.photoInvalid"), "err"); return;
+    }
+    if (f.size > 8 * 1024 * 1024) {
+      toast(t("profiles.photoTooLarge"), "err"); return;
+    }
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarFile(f);
+    setAvatarPreview(URL.createObjectURL(f));
+  }
+
+  async function saveEdit(id: string) {
+    setSavingEdit(true);
+    try {
+      await api.patch(`/profiles/${id}`, {
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        accent_color: form.accent_color || null,
+      });
+      if (avatarFile) {
+        const fd = new FormData();
+        fd.append("file", avatarFile);
+        await api.upload(`/profiles/${id}/avatar`, fd);
+      }
+      toast(t("profiles.profileSaved"));
+      closeEdit();
+      profiles.reload(); refreshProfiles();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
+    } finally { setSavingEdit(false); }
+  }
+
+  async function removePhoto(id: string) {
+    try {
+      await api.del(`/profiles/${id}/avatar`);
+      setAvatarFile(null);
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+      setAvatarPreview(null);
+      profiles.reload(); refreshProfiles();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
+    }
+  }
 
   async function add() {
     if (!name.trim()) return;
@@ -30,12 +99,6 @@ export function Profiles() {
     } catch (e) {
       toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
     } finally { setBusy(false); }
-  }
-
-  async function saveAccent(id: string, accent: string) {
-    await api.patch(`/profiles/${id}`, { accent_color: accent });
-    profiles.reload(); refreshProfiles();
-    setEditing(null);
   }
 
   async function remove(id: string, dn: string) {
@@ -107,19 +170,59 @@ export function Profiles() {
                 </span>
               </div>
               {(can("profiles.manage") || p.id === user?.id) && (
-                <button className="btn-ghost btn-sm" onClick={() => setEditing(editing === p.id ? null : p.id)}>
-                  {t("profiles.accent")}
+                <button className="btn-ghost btn-sm" onClick={() => openEdit(p)}
+                  title={t("profiles.edit")} aria-label={t("profiles.edit")}>
+                  <IconPencil width={16} height={16} />
                 </button>
               )}
               {can("profiles.manage") && p.id !== user?.id && (
                 <button className="btn-danger btn-sm" onClick={() => remove(p.id, p.display_name)}>{t("common.remove")}</button>
               )}
               {editing === p.id && (
-                <div className="swatches" style={{ flexBasis: "100%", marginTop: 10 }}>
-                  {ACCENTS.map((a) => (
-                    <span key={a.value} className={`swatch ${p.accent_color === a.value ? "active" : ""}`}
-                      style={{ background: a.value }} title={a.name} onClick={() => saveAccent(p.id, a.value)} />
-                  ))}
+                <div className="col" style={{ flexBasis: "100%", gap: 14, marginTop: 14 }}>
+                  <div className="row" style={{ gap: 14, alignItems: "center" }}>
+                    <span className="avatar" style={{ width: 64, height: 64, fontSize: "1.3rem", background: form.accent_color || p.accent_color || "var(--accent)" }}>
+                      {avatarPreview ? <img src={avatarPreview} alt="" />
+                        : p.avatar ? <img src={p.avatar} alt="" />
+                        : initials(form.first_name || p.display_name)}
+                    </span>
+                    <div className="col" style={{ gap: 8 }}>
+                      <label className="btn-ghost btn-sm" style={{ cursor: "pointer", display: "inline-flex", width: "fit-content" }}>
+                        {t("profiles.changePhoto")}
+                        <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }}
+                          onChange={(e) => pickAvatar(e.target.files?.[0] || null)} />
+                      </label>
+                      {p.avatar && !avatarPreview && (
+                        <button className="btn-ghost btn-sm" onClick={() => removePhoto(p.id)}>{t("profiles.removePhoto")}</button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+                    <div className="col" style={{ gap: 4, flex: "1 1 140px" }}>
+                      <label>{t("profiles.firstName")}</label>
+                      <input value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} />
+                    </div>
+                    <div className="col" style={{ gap: 4, flex: "1 1 140px" }}>
+                      <label>{t("profiles.lastName")}</label>
+                      <input value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="col" style={{ gap: 6 }}>
+                    <label>{t("profiles.accent")}</label>
+                    <div className="swatches">
+                      {ACCENTS.map((a) => (
+                        <span key={a.value} className={`swatch ${form.accent_color === a.value ? "active" : ""}`}
+                          style={{ background: a.value }} title={a.name}
+                          onClick={() => setForm((f) => ({ ...f, accent_color: a.value }))} />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="row" style={{ gap: 8 }}>
+                    <button className="btn-primary btn-sm" disabled={savingEdit} onClick={() => saveEdit(p.id)}>
+                      {savingEdit ? "…" : t("profiles.saveProfile")}
+                    </button>
+                    <button className="btn-ghost btn-sm" onClick={closeEdit}>{t("common.cancel")}</button>
+                  </div>
                 </div>
               )}
             </div>

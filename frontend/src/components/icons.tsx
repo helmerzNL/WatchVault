@@ -61,6 +61,9 @@ export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
 export const IconRefresh = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg>
 );
+export const IconPencil = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+);
 export const IconCalendar = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></svg>
 );
