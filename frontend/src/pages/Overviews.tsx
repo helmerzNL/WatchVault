@@ -196,7 +196,7 @@ function GenreActor({ scope }: { scope: string }) {
               genreData.length ? (
                 <div className="col" style={{ gap: 10 }}>
                   {genreData.map((g) => (
-                    <Link key={g.genre_id} to={`/genre/${g.genre_id}`} className="row"
+                    <Link key={g.genre_id} to={`/search?genre=${encodeURIComponent(g.genre)}`} className="row"
                       style={{ gap: 12, color: "inherit", textDecoration: "none" }}>
                       <div className="col" style={{ flex: 1, gap: 4 }}>
                         <div className="row"><span style={{ fontWeight: 600, fontSize: "0.9rem", flex: 1 }}>{tGenre(g.genre)}</span>

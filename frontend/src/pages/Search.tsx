@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT, providerLabelShort } from "../lib/i18n";
+import { useT, providerLabelShort, useGenre } from "../lib/i18n";
 import { api } from "../lib/api";
 import { Loading, Empty, Poster, ErrorState } from "../components/ui";
 import { IconSearch } from "../components/icons";
@@ -15,6 +15,7 @@ const PAGE = 60;
 export function Search() {
   const { scope } = useApp();
   const { t, lang } = useT();
+  const tGenre = useGenre();
   const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState(() => searchParams.get("q") || "");
   const [genre, setGenre] = useState(() => searchParams.get("genre") || "");
@@ -23,6 +24,8 @@ export function Search() {
   const [year, setYear] = useState(() => searchParams.get("year") || "");
   const [kind, setKind] = useState(() => searchParams.get("kind") || "");
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [genreOptions, setGenreOptions] = useState<string[]>([]);
+  const [yearOptions, setYearOptions] = useState<number[]>([]);
 
   const [results, setResults] = useState<any[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -34,6 +37,28 @@ export function Search() {
   const reqRef = useRef(0);
 
   useEffect(() => { api.get("/providers").then(setProviders).catch(() => {}); }, []);
+
+  // Available genres / release years for the current scope, driving the filter
+  // dropdowns so users pick from what they've actually watched.
+  useEffect(() => {
+    api.get("/search/facets", { profile: scope })
+      .then((f) => { setGenreOptions(f.genres || []); setYearOptions(f.years || []); })
+      .catch(() => {});
+  }, [scope]);
+
+  // Keep the currently selected value available as an option even if it isn't in
+  // the fetched facets (e.g. a genre passed in via the URL from another page).
+  const genreSelectOptions = useMemo(() => {
+    const set = new Set(genreOptions);
+    if (genre) set.add(genre);
+    return Array.from(set).sort((a, b) => tGenre(a).localeCompare(tGenre(b)));
+  }, [genreOptions, genre, tGenre]);
+
+  const yearSelectOptions = useMemo(() => {
+    const set = new Set(yearOptions.map(String));
+    if (year) set.add(year);
+    return Array.from(set).map(Number).sort((a, b) => b - a);
+  }, [yearOptions, year]);
 
   // Persist active filters in the URL so they survive opening an item and
   // navigating back (the component remounts and re-reads from the URL).
@@ -157,7 +182,10 @@ export function Search() {
           </div>
           <div>
             <label>{t("search.genre")}</label>
-            <input value={genre} onChange={(e) => setGenre(e.target.value)} placeholder={t("search.genrePlaceholder")} />
+            <select value={genre} onChange={(e) => setGenre(e.target.value)}>
+              <option value="">{t("search.any")}</option>
+              {genreSelectOptions.map((g) => <option key={g} value={g}>{tGenre(g)}</option>)}
+            </select>
           </div>
           <div>
             <label>{t("search.actor")}</label>
@@ -165,8 +193,10 @@ export function Search() {
           </div>
           <div>
             <label>{t("search.year")}</label>
-            <input value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, ""))} placeholder="2025"
-              inputMode="numeric" maxLength={4} />
+            <select value={year} onChange={(e) => setYear(e.target.value)}>
+              <option value="">{t("search.any")}</option>
+              {yearSelectOptions.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+            </select>
           </div>
         </div>
         {activeFilters > 0 && (
