@@ -32,6 +32,26 @@ export async function recoverWithCode(code: string) {
   return api.post("/auth/recover", { code });
 }
 
+export type PasskeyInfo = {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
+};
+
+export async function listPasskeys(): Promise<PasskeyInfo[]> {
+  return api.get("/auth/passkeys");
+}
+
+export async function deletePasskey(id: string) {
+  return api.del(`/auth/passkeys/${id}`);
+}
+
+export async function regenerateRecoveryCodes(): Promise<string[]> {
+  const res = await api.post("/auth/recovery-codes/regenerate", {});
+  return res.recovery_codes as string[];
+}
+
 export function passkeysSupported(): boolean {
   return typeof window !== "undefined" && !!window.PublicKeyCredential;
 }

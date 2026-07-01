@@ -5,6 +5,7 @@ import { useT } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, Section } from "../components/ui";
+import { AccountSecurity } from "../components/AccountSecurity";
 import { IconPlus, IconUsers, IconSettings, IconChevron, IconPencil } from "../components/icons";
 import { initials, fmtNum, fmtDate, ACCENTS } from "../lib/format";
 
@@ -229,6 +230,8 @@ export function Profiles() {
           ))}
         </div>
       </Section>
+
+      <AccountSecurity />
 
       <div className="card" style={{ marginTop: 20 }}>
         <div className="row">

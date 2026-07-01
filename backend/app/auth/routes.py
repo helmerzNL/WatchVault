@@ -349,6 +349,72 @@ def passkey_add_complete():
     return jsonify({"ok": True})
 
 
+# ── List / delete passkeys for the current account ────────────────────────
+
+@bp.get("/passkeys")
+@require_auth
+def list_passkeys():
+    user = current_user()
+    rows = query_all(
+        "SELECT id, name, created_at, last_used_at FROM webauthn_credentials "
+        "WHERE user_id = %s ORDER BY created_at",
+        (user["id"],),
+    )
+    return jsonify([
+        {
+            "id": str(r["id"]),
+            "name": r["name"] or "Passkey",
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "last_used_at": r["last_used_at"].isoformat() if r["last_used_at"] else None,
+        }
+        for r in rows
+    ])
+
+
+@bp.delete("/passkeys/<cred_id>")
+@require_auth
+def delete_passkey(cred_id):
+    user = current_user()
+    try:
+        cid = uuid.UUID(cred_id)
+    except ValueError:
+        return jsonify({"error": "invalid id"}), 400
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT count(*) AS n FROM webauthn_credentials WHERE user_id = %s",
+            (user["id"],),
+        )
+        if cur.fetchone()["n"] <= 1:
+            # Never leave an account with no way to sign in.
+            return jsonify({"error": "cannot delete the last passkey"}), 400
+        cur.execute(
+            "DELETE FROM webauthn_credentials WHERE id = %s AND user_id = %s",
+            (cid, user["id"]),
+        )
+        if cur.rowcount == 0:
+            return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
+
+
+# ── Regenerate recovery codes for the current account ─────────────────────
+
+@bp.post("/recovery-codes/regenerate")
+@require_auth
+def regenerate_recovery_codes():
+    user = current_user()
+    codes = [generate_recovery_code() for _ in range(8)]
+    with connection() as conn, conn.cursor() as cur:
+        # Replacing the set invalidates any previously issued codes.
+        cur.execute("DELETE FROM recovery_codes WHERE user_id = %s", (user["id"],))
+        for code in codes:
+            salt = new_salt()
+            cur.execute(
+                "INSERT INTO recovery_codes (user_id, code_hash, salt) VALUES (%s, %s, %s)",
+                (user["id"], hash_secret(code, salt), salt),
+            )
+    return jsonify({"ok": True, "recovery_codes": codes})
+
+
 # ── OAuth2 + PKCE mobile bridge ────────────────────────────────────────────
 # Native app: open /authorize in a web view (user signs in with passkey),
 # receive an auth code on the redirect, then exchange it at /token with the
