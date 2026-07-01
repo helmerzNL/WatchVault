@@ -597,6 +597,12 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 .dash-edit-label { font-weight: 700; font-size: 0.85rem; }
 .dash-edit-btn { display: inline-flex; align-items: center; justify-content: center; padding: 4px; min-height: 0; }
 .dash-edit-btn:disabled { opacity: 0.35; cursor: default; }
+.dash-edit-grip { display: inline-flex; align-items: center; justify-content: center; padding: 4px; color: var(--muted); cursor: grab; touch-action: none; border-radius: 6px; }
+.dash-edit-grip:hover { color: var(--text); background: var(--surface-2, rgba(128,128,128,0.12)); }
+.dash-edit-grip:active { cursor: grabbing; }
+.dash-edit-block.is-dragging { opacity: 0.45; }
+.dash-edit-block.is-over { border-style: solid; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.dash-edit-toggle.is-active { color: var(--accent); }
 .dash-edit-block.is-hidden .dash-edit-body { opacity: 0.4; }
 .dash-edit-body > *:last-child { margin-bottom: 0 !important; }
 

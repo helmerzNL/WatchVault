@@ -88,6 +88,7 @@ const en = {
   "dashboard.editLayout": "Edit layout",
   "dashboard.doneEditing": "Done",
   "dashboard.restoreDefault": "Restore default",
+  "dashboard.dragReorder": "Drag to reorder",
   "dashboard.moveUp": "Move up",
   "dashboard.moveDown": "Move down",
   "dashboard.hideBlock": "Hide",

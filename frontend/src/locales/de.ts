@@ -88,6 +88,7 @@ const de = {
   "dashboard.editLayout": "Layout bearbeiten",
   "dashboard.doneEditing": "Fertig",
   "dashboard.restoreDefault": "Standard wiederherstellen",
+  "dashboard.dragReorder": "Zum Umsortieren ziehen",
   "dashboard.moveUp": "Nach oben",
   "dashboard.moveDown": "Nach unten",
   "dashboard.hideBlock": "Ausblenden",

@@ -88,6 +88,7 @@ const it = {
   "dashboard.editLayout": "Modifica layout",
   "dashboard.doneEditing": "Fatto",
   "dashboard.restoreDefault": "Ripristina predefinito",
+  "dashboard.dragReorder": "Trascina per riordinare",
   "dashboard.moveUp": "Su",
   "dashboard.moveDown": "Giù",
   "dashboard.hideBlock": "Nascondi",

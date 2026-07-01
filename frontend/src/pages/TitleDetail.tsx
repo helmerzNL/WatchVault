@@ -232,7 +232,9 @@ function LiveNowBar({ live, compact }: { live: any; compact?: boolean }) {
         <span className={`live-dot ${dotClass}`} />
         <span className="live-now-label">{label}</span>
         <span className="caption" style={{ marginLeft: "auto" }}>
-          {state} · {Math.round(pct)}%{stopped && live.updated_at ? ` · ${fmtDate(live.updated_at)}` : ""}
+          {stopped
+            ? `${Math.round(pct)}%${live.updated_at ? ` (${fmtDate(live.updated_at)})` : ""}`
+            : `${state} · ${Math.round(pct)}%`}
         </span>
       </div>
       <div className="bar-track">

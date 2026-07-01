@@ -57,6 +57,21 @@ _SEASON_EP = re.compile(
     re.IGNORECASE,
 )
 _YEAR = re.compile(r"\((\d{4})\)")
+# A trailing "(YYYY)" the way some providers (e.g. Plex) suffix a *series* title
+# while others (SkyShowtime, generic CSV) don't. Stripped before building a
+# series' normalized_key so both notations resolve to one title.
+_TRAILING_PAREN_YEAR = re.compile(r"\s*\(\s*\d{4}\s*\)\s*$")
+
+
+def title_key(value: str, kind: str) -> str:
+    """Normalized match key for a *title*. For series the trailing parenthetical
+    release year is stripped first, so "Show (2023)" and "Show" collapse onto the
+    same key. Movies keep the year (it disambiguates same-name films of different
+    years), so their key is a plain ``normalize_text``."""
+    s = value or ""
+    if kind == "series":
+        s = _TRAILING_PAREN_YEAR.sub("", s)
+    return normalize_text(s)
 
 
 def parse_episode_marker(text: str) -> tuple[int | None, int | None]:

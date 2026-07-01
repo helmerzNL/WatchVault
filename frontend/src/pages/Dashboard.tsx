@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment, type ReactNode } from "react";
+import { useState, useEffect, useRef, Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT, providerLabel } from "../lib/i18n";
@@ -7,7 +7,7 @@ import { useFetch } from "../lib/useFetch";
 import { Spark } from "../components/charts";
 import { Loading, ErrorState, Empty, Stat, Poster, Section, MonthNav, RangeSeg, Seg, type Range } from "../components/ui";
 import { fmtHours, fmtNum, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
-import { IconChart, IconImport, IconEye, IconEyeOff, IconChevron } from "../components/icons";
+import { IconChart, IconImport, IconEye, IconEyeOff, IconLayout, IconGrip, IconCheck } from "../components/icons";
 import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
 
 type RecentRange = "week" | "month" | "year";
@@ -25,6 +25,8 @@ export function Dashboard() {
   const [range, setRange] = useState<Range>("all");
   const [recentRange, setRecentRange] = useState<RecentRange>("month");
   const [editing, setEditing] = useState(false);
+  const [dragId, setDragId] = useState<BlockId | null>(null);
+  const [overId, setOverId] = useState<BlockId | null>(null);
 
   const summary = useFetch<any>(() => api.get("/stats/summary", { profile: scope }), [scope]);
   const providers = useFetch<any[]>(() => api.get("/stats/providers", { profile: scope, range }), [scope, range]);
@@ -134,20 +136,25 @@ export function Dashboard() {
   const persist = (order: BlockId[], hid: string[]) => {
     savePrefs({ dashboard_layout: { order, hidden: hid } }).catch(() => {});
   };
-  const move = (id: BlockId, dir: -1 | 1) => {
-    const i = gated.indexOf(id);
-    const j = i + dir;
-    if (j < 0 || j >= gated.length) return;
-    const neighbor = gated[j];
+  const move = (id: BlockId, targetId: BlockId) => {
+    if (id === targetId) return;
     const order = [...fullOrder];
-    const oi = order.indexOf(id), oj = order.indexOf(neighbor);
-    [order[oi], order[oj]] = [order[oj], order[oi]];
+    const from = order.indexOf(id);
+    const to = order.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    order.splice(from, 1);
+    order.splice(to, 0, id);
     persist(order, [...hidden]);
   };
   const toggleHide = (id: BlockId) => {
     const h = new Set(hidden);
     if (h.has(id)) h.delete(id); else h.add(id);
     persist(fullOrder, [...h]);
+  };
+  const onDrop = (targetId: BlockId) => {
+    if (dragId) move(dragId, targetId);
+    setDragId(null);
+    setOverId(null);
   };
 
   return (
@@ -159,19 +166,24 @@ export function Dashboard() {
         </div>
         <div className="spacer" style={{ flex: 1 }} />
         {editing && <button className="btn-ghost btn-sm" onClick={() => persist([], [])}>{t("dashboard.restoreDefault")}</button>}
-        <button className="btn-ghost btn-sm" onClick={() => setEditing((e) => !e)}>
-          {editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}
+        <button className={`btn-ghost btn-sm dash-edit-toggle ${editing ? "is-active" : ""}`} onClick={() => setEditing((e) => !e)}
+          title={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}
+          aria-label={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}>
+          {editing ? <IconCheck width={18} height={18} /> : <IconLayout width={18} height={18} />}
         </button>
         {!editing && <AddCinemaFilmButton variant="ghost" />}
       </div>
 
       {rendered.map((id) => {
         if (!editing) return <Fragment key={id}>{blocks[id].node}</Fragment>;
-        const gi = gated.indexOf(id);
         return (
-          <EditBlock key={id} label={t(blocks[id].labelKey)} hidden={hidden.has(id)}
-            first={gi === 0} last={gi === gated.length - 1}
-            onUp={() => move(id, -1)} onDown={() => move(id, 1)} onToggle={() => toggleHide(id)}>
+          <EditBlock key={id} id={id} label={t(blocks[id].labelKey)} hidden={hidden.has(id)}
+            dragging={dragId === id} over={overId === id && dragId !== id && dragId != null}
+            onToggle={() => toggleHide(id)}
+            onDragStart={() => setDragId(id)}
+            onDragEnter={() => setOverId(id)}
+            onDragEnd={() => { setDragId(null); setOverId(null); }}
+            onDrop={() => onDrop(id)}>
             {blocks[id].node}
           </EditBlock>
         );
@@ -180,24 +192,37 @@ export function Dashboard() {
   );
 }
 
-// Edit-mode wrapper: a control bar (reorder up/down + hide/show) above each
-// block. Hidden blocks stay listed here (dimmed) so they can be toggled back on.
-function EditBlock({ label, hidden, first, last, onUp, onDown, onToggle, children }: {
-  label: string; hidden: boolean; first: boolean; last: boolean;
-  onUp: () => void; onDown: () => void; onToggle: () => void; children: ReactNode;
+// Edit-mode wrapper: a control bar (drag handle + hide/show) above each block.
+// Reordering is done by dragging the grip handle onto another block (native
+// HTML5 drag-and-drop). Hidden blocks stay listed here (dimmed) so they can be
+// toggled back on.
+function EditBlock({ id, label, hidden, dragging, over, onToggle, onDragStart, onDragEnter, onDragEnd, onDrop, children }: {
+  id: string; label: string; hidden: boolean; dragging: boolean; over: boolean;
+  onToggle: () => void; onDragStart: () => void; onDragEnter: () => void;
+  onDragEnd: () => void; onDrop: () => void; children: ReactNode;
 }) {
   const { t } = useT();
+  const ref = useRef<HTMLDivElement>(null);
   return (
-    <div className={`dash-edit-block ${hidden ? "is-hidden" : ""}`}>
+    <div ref={ref}
+      className={`dash-edit-block ${hidden ? "is-hidden" : ""} ${dragging ? "is-dragging" : ""} ${over ? "is-over" : ""}`}
+      onDragEnter={(e) => { e.preventDefault(); onDragEnter(); }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => { e.preventDefault(); onDrop(); }}>
       <div className="dash-edit-bar">
+        <span className="dash-edit-grip" draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", id);
+            if (ref.current) e.dataTransfer.setDragImage(ref.current, 24, 24);
+            onDragStart();
+          }}
+          onDragEnd={onDragEnd}
+          title={t("dashboard.dragReorder")} aria-label={t("dashboard.dragReorder")}>
+          <IconGrip width={18} height={18} />
+        </span>
         <span className="dash-edit-label">{label}</span>
         <div className="spacer" style={{ flex: 1 }} />
-        <button className="btn-ghost btn-sm dash-edit-btn" disabled={first} onClick={onUp} title={t("dashboard.moveUp")} aria-label={t("dashboard.moveUp")}>
-          <IconChevron width={16} height={16} style={{ transform: "rotate(-90deg)" }} />
-        </button>
-        <button className="btn-ghost btn-sm dash-edit-btn" disabled={last} onClick={onDown} title={t("dashboard.moveDown")} aria-label={t("dashboard.moveDown")}>
-          <IconChevron width={16} height={16} style={{ transform: "rotate(90deg)" }} />
-        </button>
         <button className="btn-ghost btn-sm dash-edit-btn" onClick={onToggle}
           title={hidden ? t("dashboard.showBlock") : t("dashboard.hideBlock")}
           aria-label={hidden ? t("dashboard.showBlock") : t("dashboard.hideBlock")}>
@@ -221,10 +246,10 @@ function UnfinishedTitles({ scope }: { scope: string }) {
 
   const subtitle = (u: any): string => {
     const minLeft = u.remaining_minutes != null ? t("dashboard.minLeft", { min: u.remaining_minutes }) : null;
-    const parts = u.kind === "movie"
-      ? [minLeft, t("dashboard.pctWatched", { pct: u.progress ?? 0 })]
-      : [t("dashboard.epsLeft", { eps: u.remaining_episodes ?? 0 }), minLeft];
-    return parts.filter(Boolean).join(" · ");
+    if (u.kind === "movie")
+      return [minLeft, t("dashboard.pctWatched", { pct: u.progress ?? 0 })].filter(Boolean).join(" · ");
+    const eps = t("dashboard.epsLeft", { eps: u.remaining_episodes ?? 0 });
+    return minLeft ? `${minLeft} (${eps})` : eps;
   };
 
   return (

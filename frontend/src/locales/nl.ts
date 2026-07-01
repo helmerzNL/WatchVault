@@ -88,6 +88,7 @@ const nl = {
   "dashboard.editLayout": "Indeling bewerken",
   "dashboard.doneEditing": "Klaar",
   "dashboard.restoreDefault": "Standaard herstellen",
+  "dashboard.dragReorder": "Sleep om te herschikken",
   "dashboard.moveUp": "Omhoog",
   "dashboard.moveDown": "Omlaag",
   "dashboard.hideBlock": "Verbergen",

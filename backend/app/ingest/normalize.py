@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from ..db import connection, query_one
-from ..util import dedup_hash, normalize_text
+from ..util import dedup_hash, normalize_text, title_key
 from ..catalog import apply_title_details
 from .models import NormalizedEvent
 from .progress import recompute_title_progress
@@ -13,7 +13,7 @@ from .progress import recompute_title_progress
 
 def _resolve_title(cur, kind: str, title: str, year: int | None,
                    tmdb_id: int | None, external_ids: dict) -> tuple[str, bool]:
-    norm = normalize_text(title)
+    norm = title_key(title, kind)
     if tmdb_id:
         cur.execute("SELECT id FROM titles WHERE tmdb_id = %s", (tmdb_id,))
         row = cur.fetchone()

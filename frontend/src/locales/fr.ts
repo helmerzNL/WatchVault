@@ -88,6 +88,7 @@ const fr = {
   "dashboard.editLayout": "Modifier la disposition",
   "dashboard.doneEditing": "Terminé",
   "dashboard.restoreDefault": "Réinitialiser",
+  "dashboard.dragReorder": "Glisser pour réorganiser",
   "dashboard.moveUp": "Monter",
   "dashboard.moveDown": "Descendre",
   "dashboard.hideBlock": "Masquer",
