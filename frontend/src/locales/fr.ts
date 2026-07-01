@@ -102,6 +102,7 @@ const fr = {
 
   // ── Overviews ───────────────────────────────────────────────────────────
   "overviews.title": "Aperçus",
+  "overviews.blockGenreActor": "Genres et acteurs",
   "overviews.watchTimeOverTime": "Temps de visionnage au fil du temps",
   "overviews.day": "Jour",
   "overviews.week": "Semaine",

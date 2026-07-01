@@ -102,6 +102,7 @@ const nl = {
 
   // ── Overviews ───────────────────────────────────────────────────────────
   "overviews.title": "Overzichten",
+  "overviews.blockGenreActor": "Genres & acteurs",
   "overviews.watchTimeOverTime": "Kijktijd door de tijd",
   "overviews.day": "Dag",
   "overviews.week": "Week",

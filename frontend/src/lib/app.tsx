@@ -17,9 +17,18 @@ export interface User {
   permissions: string[];
 }
 
+export interface SubLayout {
+  order: string[];
+  hidden: string[];
+}
+
 export interface DashboardLayout {
   order: string[];
   hidden: string[];
+  // Nested layouts for finer-grained surfaces (stat tiles on the dashboard,
+  // sections on the Overviews page). Optional so old saved layouts stay valid.
+  stats?: SubLayout;
+  overviews?: SubLayout;
 }
 
 export interface Prefs {

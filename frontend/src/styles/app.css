@@ -606,6 +606,17 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 .dash-edit-block.is-hidden .dash-edit-body { opacity: 0.4; }
 .dash-edit-body > *:last-child { margin-bottom: 0 !important; }
 
+/* Stat-tile edit variant (compact EditBlock) + stats-grid whitespace so the
+   grid keeps equal top/bottom breathing room and doesn't butt against the
+   block above it (e.g. the "still to watch" poster captions). */
+.dash-stats { margin: var(--space-6) 0; }
+.stat-edit { border: 1px dashed var(--border); border-radius: var(--radius-lg, 14px); padding: 6px; display: flex; flex-direction: column; }
+.stat-edit-bar { display: flex; align-items: center; gap: 4px; padding: 0 2px 6px; }
+.stat-edit .stat { flex: 1; }
+.stat-edit.is-dragging { opacity: 0.45; }
+.stat-edit.is-over { border-style: solid; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.stat-edit.is-hidden .stat { opacity: 0.4; }
+
 /* Manual "mark watched" controls (date chips + add button) */
 .manual-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .manual-x {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT, useGenre, providerLabel } from "../lib/i18n";
@@ -8,6 +8,8 @@ import { TrendArea, StackedBars } from "../components/charts";
 import { Heatmap } from "../components/Heatmap";
 import { Loading, ErrorState, Poster, Section, Seg, MonthNav, RangeSeg, type Range } from "../components/ui";
 import { fmtDate, fmtHours, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
+import { IconLayout, IconCheck } from "../components/icons";
+import { resolveLayout, EditBlock } from "../components/LayoutEdit";
 
 type Gran = "day" | "week" | "month";
 
@@ -242,17 +244,56 @@ function GenreActor({ scope }: { scope: string }) {
   );
 }
 
+type OvId = "trend" | "heatmap" | "platforms" | "monthly" | "genreActor";
+const OV_ORDER: OvId[] = ["trend", "heatmap", "platforms", "monthly", "genreActor"];
+
 export function Overviews() {
-  const { scope } = useApp();
+  const { scope, prefs, savePrefs } = useApp();
   const { t } = useT();
+  const [editing, setEditing] = useState(false);
+  const [dragId, setDragId] = useState<OvId | null>(null);
+  const [overId, setOverId] = useState<OvId | null>(null);
+
+  const blocks: Record<OvId, { labelKey: string; node: ReactNode }> = {
+    trend: { labelKey: "overviews.watchTimeOverTime", node: <HoursTrend scope={scope} /> },
+    heatmap: { labelKey: "overviews.dailyActivity", node: <DailyHeatmap scope={scope} /> },
+    platforms: { labelKey: "overviews.perPlatform", node: <PlatformBreakdown scope={scope} /> },
+    monthly: { labelKey: "overviews.watchedPerMonth", node: <MonthlyTitles scope={scope} /> },
+    genreActor: { labelKey: "overviews.blockGenreActor", node: <GenreActor scope={scope} /> },
+  };
+
+  const dl = prefs.dashboard_layout || { order: [], hidden: [] };
+  const ctrl = resolveLayout<OvId>({
+    editing,
+    defaultOrder: OV_ORDER,
+    stored: dl.overviews,
+    persist: (order, hidden) => {
+      savePrefs({ dashboard_layout: { ...dl, overviews: { order, hidden } } }).catch(() => {});
+    },
+    drag: { dragId, overId, setDragId, setOverId },
+  });
+  const restoreDefault = () => {
+    savePrefs({ dashboard_layout: { ...dl, overviews: { order: [], hidden: [] } } }).catch(() => {});
+  };
+
   return (
     <>
-      <h1 className="large-title" style={{ marginBottom: 8 }}>{t("overviews.title")}</h1>
-      <HoursTrend scope={scope} />
-      <DailyHeatmap scope={scope} />
-      <PlatformBreakdown scope={scope} />
-      <MonthlyTitles scope={scope} />
-      <GenreActor scope={scope} />
+      <div className="section-head" style={{ marginTop: 0 }}>
+        <h1 className="large-title" style={{ margin: 0 }}>{t("overviews.title")}</h1>
+        <div className="spacer" style={{ flex: 1 }} />
+        {editing && <button className="btn-ghost btn-sm" onClick={restoreDefault}>{t("dashboard.restoreDefault")}</button>}
+        <button className={`btn-ghost btn-sm dash-edit-toggle ${editing ? "is-active" : ""}`} onClick={() => setEditing((e) => !e)}
+          title={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}
+          aria-label={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}>
+          {editing ? <IconCheck width={18} height={18} /> : <IconLayout width={18} height={18} />}
+        </button>
+      </div>
+
+      {ctrl.shown.map((id) => (
+        editing
+          ? <EditBlock key={id} id={id} label={t(blocks[id].labelKey)} ctrl={ctrl}>{blocks[id].node}</EditBlock>
+          : <Fragment key={id}>{blocks[id].node}</Fragment>
+      ))}
     </>
   );
 }

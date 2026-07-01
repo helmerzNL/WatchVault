@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment, type ReactNode } from "react";
+import { useState, useEffect, Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT, providerLabel } from "../lib/i18n";
@@ -7,8 +7,9 @@ import { useFetch } from "../lib/useFetch";
 import { Spark } from "../components/charts";
 import { Loading, ErrorState, Empty, Stat, Poster, Section, MonthNav, RangeSeg, Seg, type Range } from "../components/ui";
 import { fmtHours, fmtNum, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
-import { IconChart, IconImport, IconEye, IconEyeOff, IconLayout, IconGrip, IconCheck } from "../components/icons";
+import { IconChart, IconImport, IconLayout, IconCheck } from "../components/icons";
 import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
+import { resolveLayout, EditBlock } from "../components/LayoutEdit";
 
 type RecentRange = "week" | "month" | "year";
 
@@ -59,16 +60,7 @@ export function Dashboard() {
     unfinished: { labelKey: "dashboard.blockUnfinished", expert: true, node: <UnfinishedTitles scope={scope} /> },
     stats: {
       labelKey: "dashboard.blockStats",
-      node: (
-        <div className="stat-grid" style={{ marginBottom: 24 }}>
-          <Stat value={fmtHours(s.totals.hours)} label={t("dashboard.totalWatchTime")} />
-          <Stat value={fmtNum(s.totals.titles)} label={t("dashboard.uniqueTitles")} />
-          <Stat value={fmtNum(s.totals.movies)} label={t("common.movies")} />
-          <Stat value={fmtNum(s.totals.episodes)} label={t("common.episodes")} />
-          {prefs.expert && <Stat value={fmtHours((s.totals.remaining_minutes || 0) / 60)} label={t("dashboard.stillToWatch")} />}
-          {prefs.expert && <Stat value={fmtNum(s.totals.remaining_items || 0)} label={t("dashboard.itemsUnfinished")} />}
-        </div>
-      ),
+      node: <StatsBlock s={s} editing={editing} />,
     },
     trend: {
       labelKey: "dashboard.blockTrend",
@@ -124,37 +116,24 @@ export function Dashboard() {
     monthly: { labelKey: "dashboard.blockMonthly", node: <MonthlyTitles scope={scope} /> },
   };
 
-  // Resolve saved layout → ordered, expert-gated block ids. Saved order first
-  // (valid ids only), then any registry blocks the layout doesn't mention.
-  const layout = prefs.dashboard_layout || { order: [], hidden: [] };
-  const savedOrder = (layout.order || []).filter((x): x is BlockId => (DEFAULT_ORDER as string[]).includes(x));
-  const fullOrder: BlockId[] = [...savedOrder, ...DEFAULT_ORDER.filter((id) => !savedOrder.includes(id))];
-  const hidden = new Set<string>(layout.hidden || []);
-  const gated = fullOrder.filter((id) => !blocks[id].expert || prefs.expert);
-  const rendered = editing ? gated : gated.filter((id) => !hidden.has(id));
+  // Resolve saved layout → ordered, expert-gated block ids via the shared
+  // layout helper (same logic used by the stat tiles and the Overviews page).
+  const dl = prefs.dashboard_layout || { order: [], hidden: [] };
+  const blockCtrl = resolveLayout<BlockId>({
+    editing,
+    defaultOrder: DEFAULT_ORDER,
+    stored: dl,
+    gate: (id) => !blocks[id].expert || !!prefs.expert,
+    persist: (order, hidden) => {
+      savePrefs({ dashboard_layout: { ...dl, order, hidden } }).catch(() => {});
+    },
+    drag: { dragId, overId, setDragId, setOverId },
+  });
 
-  const persist = (order: BlockId[], hid: string[]) => {
-    savePrefs({ dashboard_layout: { order, hidden: hid } }).catch(() => {});
-  };
-  const move = (id: BlockId, targetId: BlockId) => {
-    if (id === targetId) return;
-    const order = [...fullOrder];
-    const from = order.indexOf(id);
-    const to = order.indexOf(targetId);
-    if (from < 0 || to < 0) return;
-    order.splice(from, 1);
-    order.splice(to, 0, id);
-    persist(order, [...hidden]);
-  };
-  const toggleHide = (id: BlockId) => {
-    const h = new Set(hidden);
-    if (h.has(id)) h.delete(id); else h.add(id);
-    persist(fullOrder, [...h]);
-  };
-  const onDrop = (targetId: BlockId) => {
-    if (dragId) move(dragId, targetId);
-    setDragId(null);
-    setOverId(null);
+  // Restore default resets the dashboard blocks AND the stat-tile layout (both
+  // editable here); the Overviews layout has its own restore on that page.
+  const restoreDefault = () => {
+    savePrefs({ dashboard_layout: { ...dl, order: [], hidden: [], stats: { order: [], hidden: [] } } }).catch(() => {});
   };
 
   return (
@@ -165,7 +144,7 @@ export function Dashboard() {
           <span className="muted">{t("dashboard.overviewFor", { scope: scopeName })}</span>
         </div>
         <div className="spacer" style={{ flex: 1 }} />
-        {editing && <button className="btn-ghost btn-sm" onClick={() => persist([], [])}>{t("dashboard.restoreDefault")}</button>}
+        {editing && <button className="btn-ghost btn-sm" onClick={restoreDefault}>{t("dashboard.restoreDefault")}</button>}
         <button className={`btn-ghost btn-sm dash-edit-toggle ${editing ? "is-active" : ""}`} onClick={() => setEditing((e) => !e)}
           title={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}
           aria-label={editing ? t("dashboard.doneEditing") : t("dashboard.editLayout")}>
@@ -174,16 +153,10 @@ export function Dashboard() {
         {!editing && <AddCinemaFilmButton variant="ghost" />}
       </div>
 
-      {rendered.map((id) => {
+      {blockCtrl.shown.map((id) => {
         if (!editing) return <Fragment key={id}>{blocks[id].node}</Fragment>;
         return (
-          <EditBlock key={id} id={id} label={t(blocks[id].labelKey)} hidden={hidden.has(id)}
-            dragging={dragId === id} over={overId === id && dragId !== id && dragId != null}
-            onToggle={() => toggleHide(id)}
-            onDragStart={() => setDragId(id)}
-            onDragEnter={() => setOverId(id)}
-            onDragEnd={() => { setDragId(null); setOverId(null); }}
-            onDrop={() => onDrop(id)}>
+          <EditBlock key={id} id={id} label={t(blocks[id].labelKey)} ctrl={blockCtrl}>
             {blocks[id].node}
           </EditBlock>
         );
@@ -192,44 +165,48 @@ export function Dashboard() {
   );
 }
 
-// Edit-mode wrapper: a control bar (drag handle + hide/show) above each block.
-// Reordering is done by dragging the grip handle onto another block (native
-// HTML5 drag-and-drop). Hidden blocks stay listed here (dimmed) so they can be
-// toggled back on.
-function EditBlock({ id, label, hidden, dragging, over, onToggle, onDragStart, onDragEnter, onDragEnd, onDrop, children }: {
-  id: string; label: string; hidden: boolean; dragging: boolean; over: boolean;
-  onToggle: () => void; onDragStart: () => void; onDragEnter: () => void;
-  onDragEnd: () => void; onDrop: () => void; children: ReactNode;
-}) {
+// The totals grid, with per-tile hide + drag reorder while the dashboard is in
+// edit mode (mirrors the block-level editing, one level deeper). Layout is
+// stored under prefs.dashboard_layout.stats and synced via /preferences. The
+// two "remaining" tiles are Expert-only. Not editing → a plain stat grid with
+// consistent top/bottom whitespace so it doesn't butt against the block above.
+type StatId = "hours" | "titles" | "movies" | "episodes" | "remaining" | "remainingItems";
+const STATS_ORDER: StatId[] = ["hours", "titles", "movies", "episodes", "remaining", "remainingItems"];
+
+function StatsBlock({ s, editing }: { s: any; editing: boolean }) {
   const { t } = useT();
-  const ref = useRef<HTMLDivElement>(null);
+  const { prefs, savePrefs } = useApp();
+  const [dragId, setDragId] = useState<StatId | null>(null);
+  const [overId, setOverId] = useState<StatId | null>(null);
+
+  const tiles: Record<StatId, { expert?: boolean; node: ReactNode }> = {
+    hours: { node: <Stat value={fmtHours(s.totals.hours)} label={t("dashboard.totalWatchTime")} /> },
+    titles: { node: <Stat value={fmtNum(s.totals.titles)} label={t("dashboard.uniqueTitles")} /> },
+    movies: { node: <Stat value={fmtNum(s.totals.movies)} label={t("common.movies")} /> },
+    episodes: { node: <Stat value={fmtNum(s.totals.episodes)} label={t("common.episodes")} /> },
+    remaining: { expert: true, node: <Stat value={fmtHours((s.totals.remaining_minutes || 0) / 60)} label={t("dashboard.stillToWatch")} /> },
+    remainingItems: { expert: true, node: <Stat value={fmtNum(s.totals.remaining_items || 0)} label={t("dashboard.itemsUnfinished")} /> },
+  };
+
+  const dl = prefs.dashboard_layout || { order: [], hidden: [] };
+  const ctrl = resolveLayout<StatId>({
+    editing,
+    defaultOrder: STATS_ORDER,
+    stored: dl.stats,
+    gate: (id) => !tiles[id].expert || !!prefs.expert,
+    persist: (order, hidden) => {
+      savePrefs({ dashboard_layout: { ...dl, stats: { order, hidden } } }).catch(() => {});
+    },
+    drag: { dragId, overId, setDragId, setOverId },
+  });
+
   return (
-    <div ref={ref}
-      className={`dash-edit-block ${hidden ? "is-hidden" : ""} ${dragging ? "is-dragging" : ""} ${over ? "is-over" : ""}`}
-      onDragEnter={(e) => { e.preventDefault(); onDragEnter(); }}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => { e.preventDefault(); onDrop(); }}>
-      <div className="dash-edit-bar">
-        <span className="dash-edit-grip" draggable
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = "move";
-            e.dataTransfer.setData("text/plain", id);
-            if (ref.current) e.dataTransfer.setDragImage(ref.current, 24, 24);
-            onDragStart();
-          }}
-          onDragEnd={onDragEnd}
-          title={t("dashboard.dragReorder")} aria-label={t("dashboard.dragReorder")}>
-          <IconGrip width={18} height={18} />
-        </span>
-        <span className="dash-edit-label">{label}</span>
-        <div className="spacer" style={{ flex: 1 }} />
-        <button className="btn-ghost btn-sm dash-edit-btn" onClick={onToggle}
-          title={hidden ? t("dashboard.showBlock") : t("dashboard.hideBlock")}
-          aria-label={hidden ? t("dashboard.showBlock") : t("dashboard.hideBlock")}>
-          {hidden ? <IconEyeOff width={16} height={16} /> : <IconEye width={16} height={16} />}
-        </button>
-      </div>
-      <div className="dash-edit-body">{children}</div>
+    <div className={`stat-grid ${editing ? "" : "dash-stats"}`}>
+      {ctrl.shown.map((id) => (
+        editing
+          ? <EditBlock key={id} id={id} ctrl={ctrl} compact>{tiles[id].node}</EditBlock>
+          : <Fragment key={id}>{tiles[id].node}</Fragment>
+      ))}
     </div>
   );
 }

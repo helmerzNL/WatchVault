@@ -102,6 +102,7 @@ const it = {
 
   // ── Overviews ───────────────────────────────────────────────────────────
   "overviews.title": "Panoramiche",
+  "overviews.blockGenreActor": "Generi e attori",
   "overviews.watchTimeOverTime": "Tempo di visione nel tempo",
   "overviews.day": "Giorno",
   "overviews.week": "Settimana",
