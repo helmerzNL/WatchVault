@@ -134,6 +134,55 @@ def now_playing():
     ])
 
 
+# ── Persistent progress (title/series pages) ────────────────────────────────
+
+@bp.get("/progress")
+@require_perm("ingest.write")
+def title_progress():
+    """Latest *uncommitted* scrobble session per title, regardless of state
+    (playing / paused / stopped). Drives the persistent progress bar on the
+    film/series page: unlike now-playing this keeps returning the last known
+    position after playback stops, so you can see what you're partway through.
+
+    ``?title_id=`` narrows to one title (used by the detail page); omitted
+    returns every in-progress title for the household. Only sessions that were
+    never committed to a finished watch_event are returned (a finished play has
+    ``committed_at`` set and is not 'in progress')."""
+    user = current_user()
+    title_id = (request.args.get("title_id") or "").strip() or None
+    params: list = [user["household_id"]]
+    where = "s.household_id = %s AND s.committed_at IS NULL AND s.title_id IS NOT NULL"
+    if title_id:
+        where += " AND s.title_id = %s"
+        params.append(title_id)
+    # One row per (title, season, episode): the most recently updated session.
+    rows = query_all(
+        "SELECT DISTINCT ON (s.title_id, COALESCE(s.season,0), COALESCE(s.episode,0)) "
+        "       s.title_id, s.season, s.episode, s.episode_name, s.kind, "
+        "       s.progress_percent, s.state, s.updated_at, s.user_id, "
+        "       u.display_name AS profile_name "
+        "FROM scrobble_sessions s LEFT JOIN users u ON u.id = s.user_id "
+        "WHERE " + where +
+        " ORDER BY s.title_id, COALESCE(s.season,0), COALESCE(s.episode,0), s.updated_at DESC",
+        tuple(params),
+    )
+    return jsonify([
+        {
+            "title_id": str(r["title_id"]),
+            "season": r["season"],
+            "episode": r["episode"],
+            "episode_name": r["episode_name"],
+            "kind": r["kind"],
+            "progress": float(r["progress_percent"] or 0),
+            "state": r["state"],
+            "profile": r["profile_name"],
+            "profile_id": str(r["user_id"]) if r["user_id"] else None,
+            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+        }
+        for r in rows
+    ])
+
+
 # ── Account → profile mapping ───────────────────────────────────────────────
 
 @bp.get("/account-map")

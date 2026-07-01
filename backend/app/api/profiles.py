@@ -18,6 +18,7 @@ DEFAULT_PREFS = {
     "default_profile": "all",
     "language": "en",
     "cinemaAdd": True,
+    "dashboard_layout": {"order": [], "hidden": []},
 }
 
 

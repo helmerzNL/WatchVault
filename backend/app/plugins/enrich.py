@@ -207,6 +207,11 @@ def enrich_title(title_id: str) -> dict:
     # Plex history) thus gain their watch hours retroactively.
     with connection() as conn, conn.cursor() as cur:
         cur.execute("SELECT wv_recompute_agg_for_title(%s)", (title_id,))
+        # Episode totals are only known after enrichment, so a fully-watched
+        # series can now flip to "finished" — recompute completion for every
+        # user who has watched (or is watching) this title.
+        from ..ingest.progress import recompute_title_progress_all_users
+        recompute_title_progress_all_users(cur, title_id)
 
     # Network is now known (from TMDB) — move this title's Trakt watch events
     # onto the real streaming service so the dashboard/stats attribute them

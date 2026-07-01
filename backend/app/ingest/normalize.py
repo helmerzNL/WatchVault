@@ -8,6 +8,7 @@ from ..db import connection, query_one
 from ..util import dedup_hash, normalize_text
 from ..catalog import apply_title_details
 from .models import NormalizedEvent
+from .progress import recompute_title_progress
 
 
 def _resolve_title(cur, kind: str, title: str, year: int | None,
@@ -110,6 +111,7 @@ def _ingest_events(user_id: str, provider_id: str, source_connection_id: str | N
     duplicates = 0
     titles_created: list[str] = []
     touched_titles: set[str] = set()
+    progressed_titles: set[str] = set()
     series_titles: set[str] = set()
     meta_applied: set[str] = set()
     affected_dates: set = set()
@@ -152,6 +154,7 @@ def _ingest_events(user_id: str, provider_id: str, source_connection_id: str | N
         if cur.fetchone():
             inserted += 1
             affected_dates.add(watched_date)
+            progressed_titles.add(title_id)
         else:
             duplicates += 1
 
@@ -161,6 +164,11 @@ def _ingest_events(user_id: str, provider_id: str, source_connection_id: str | N
     if affected_dates:
         cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)",
                     (user_id, provider_id, list(affected_dates)))
+
+    # Refresh the precomputed "finished / in-progress" status for titles that
+    # gained a watch this run (idempotent; skips pure-duplicate re-imports).
+    for tid in progressed_titles:
+        recompute_title_progress(cur, user_id, tid)
 
     # queue enrichment for newly created titles
     for tid in titles_created:

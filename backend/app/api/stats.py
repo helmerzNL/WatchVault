@@ -449,3 +449,31 @@ def genre_titles():
             for r in rows
         ],
     })
+
+
+@bp.get("/unfinished")
+@require_perm("catalog.read")
+def unfinished_titles():
+    """Titles the scoped profile(s) have started but not finished — the
+    precomputed "not yet finished" tracker. Series report watched/total episodes;
+    sorted by most-recent activity. Reads the ``title_progress`` rollup so this
+    stays fast without live-aggregating raw events."""
+    ids = _ids()
+    rows = query_all(
+        "SELECT t.id, t.title, t.kind, t.year, t.poster_path, "
+        "  max(tp.watched_episodes) AS watched_episodes, "
+        "  max(tp.total_episodes) AS total_episodes, "
+        "  max(tp.last_activity_at) AS last_activity_at "
+        "FROM title_progress tp JOIN titles t ON t.id = tp.title_id "
+        "WHERE tp.user_id = ANY(%s::uuid[]) AND tp.status = 'in_progress' "
+        "GROUP BY t.id ORDER BY max(tp.last_activity_at) DESC NULLS LAST, t.title",
+        (ids,),
+    )
+    return jsonify([
+        {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
+         "poster": poster_url(r["poster_path"]),
+         "watched_episodes": int(r["watched_episodes"] or 0),
+         "total_episodes": int(r["total_episodes"] or 0),
+         "last_activity": r["last_activity_at"].isoformat() if r["last_activity_at"] else None}
+        for r in rows
+    ])

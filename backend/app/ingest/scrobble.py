@@ -16,6 +16,7 @@ from ..db import connection
 from ..util import normalize_text, now_utc
 from .models import NormalizedEvent
 from .normalize import _resolve_title, ingest_events
+from .progress import recompute_title_progress
 
 # Plex webhook event -> our coarse event name.
 _PLEX_EVENTS = {
@@ -349,6 +350,13 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
                 "UPDATE scrobble_sessions SET committed_at = now() WHERE id = %s",
                 (session_id,))
             committed = True
+
+        # Keep the precomputed completion status in sync with live playback: a
+        # movie/series that's playing but not yet committed shows as in-progress,
+        # and a just-committed play flips it to finished (series: once all
+        # episodes are in). Runs on the same open cursor/transaction.
+        if user_id and title_id:
+            recompute_title_progress(cur, str(user_id), str(title_id))
 
     return {
         "session_id": str(session_id),

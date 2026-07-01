@@ -16,6 +16,7 @@ import json
 
 from ..db import connection
 from ..util import dedup_hash, normalize_text
+from .progress import recompute_title_progress
 
 
 def _provider_id(cur) -> str | None:
@@ -71,6 +72,7 @@ def add_manual_movie(user_id: str, title_id: str, watched_date: dt.date) -> dict
                             t["title"], t["title"], None, None, watched_date)
         if eid:
             _recompute(cur, user_id, pid, [watched_date])
+            recompute_title_progress(cur, user_id, title_id)
         return {"status": "ok", "inserted": 1 if eid else 0, "id": eid}
 
 
@@ -95,6 +97,7 @@ def add_manual_episode(user_id: str, episode_id: str, watched_date: dt.date) -> 
                             watched_date)
         if eid:
             _recompute(cur, user_id, pid, [watched_date])
+            recompute_title_progress(cur, user_id, str(ep["title_id"]))
         return {"status": "ok", "inserted": 1 if eid else 0, "id": eid}
 
 
@@ -127,11 +130,13 @@ def add_manual_season(user_id: str, title_id: str, season: int,
                 added += 1
         if added:
             _recompute(cur, user_id, pid, [watched_date])
+            recompute_title_progress(cur, user_id, title_id)
         return {"status": "ok", "inserted": added, "total": len(eps)}
 
 
 def remove_watch_date(user_ids: list[str], *, watched_date: dt.date,
-                      match_sql: str, match_params: list) -> dict:
+                      match_sql: str, match_params: list,
+                      title_id: str | None = None) -> dict:
     """Delete every watch event for the matched item on ``watched_date`` for the
     given household members, regardless of source.
 
@@ -173,6 +178,10 @@ def remove_watch_date(user_ids: list[str], *, watched_date: dt.date,
             removed += 1
         for uid, pid in pairs:
             _recompute(cur, uid, pid, [watched_date])
+        # Removing a watch can flip a title back to in-progress (or off the list).
+        if title_id:
+            for uid in {u for u, _ in pairs}:
+                recompute_title_progress(cur, uid, title_id)
         return {"removed": removed}
 
 
@@ -190,7 +199,8 @@ def delete_episode_watch(user_ids: list[str], episode_id: str,
              "AND COALESCE(we.season, 0) = %s AND we.episode = %s))")
     params = [str(episode_id), str(ep["title_id"]), ep["season"] or 0, ep["episode"]]
     res = remove_watch_date(user_ids, watched_date=watched_date,
-                            match_sql=match, match_params=params)
+                            match_sql=match, match_params=params,
+                            title_id=str(ep["title_id"]))
     return {"status": "ok", **res}
 
 
@@ -200,7 +210,8 @@ def delete_movie_watch(user_ids: list[str], title_id: str,
     household members)."""
     match = "(we.title_id = %s AND we.episode_id IS NULL)"
     res = remove_watch_date(user_ids, watched_date=watched_date,
-                            match_sql=match, match_params=[str(title_id)])
+                            match_sql=match, match_params=[str(title_id)],
+                            title_id=str(title_id))
     return {"status": "ok", **res}
 
 
