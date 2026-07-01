@@ -33,6 +33,7 @@ function ApiTokens() {
   const tokens = useFetch<any[]>(() => api.get("/tokens"), []);
   const [name, setName] = useState("");
   const [fresh, setFresh] = useState<string | null>(null);
+  const mcpUrl = (typeof window !== "undefined" ? window.location.origin : "https://watchvault.example.com") + "/mcp";
 
   async function create() {
     try {
@@ -59,6 +60,18 @@ function ApiTokens() {
         <p className="caption" style={{ marginBottom: 14 }}>
           {t("settings.tokensHelp")}
         </p>
+        <div className="card" style={{ marginBottom: 14, background: "var(--bg)" }}>
+          <span className="caption">{t("settings.mcpSetup")}</span>
+          <div className="row" style={{ gap: 8, alignItems: "center", marginTop: 8 }}>
+            <div className="code-box" style={{ flex: 1, margin: 0, overflowX: "auto" }}>{mcpUrl}</div>
+            <button className="btn-ghost btn-sm" style={{ flexShrink: 0 }}
+              onClick={() => { navigator.clipboard?.writeText(mcpUrl); toast(t("settings.endpointCopied")); }}>
+              {t("settings.copyEndpoint")}
+            </button>
+          </div>
+          <span className="caption" style={{ display: "block", margin: "10px 0 6px" }}>{t("settings.mcpAuth")}</span>
+          <div className="code-box" style={{ overflowX: "auto" }}>Authorization: Bearer wvapi_…</div>
+        </div>
         {fresh && (
           <div className="card" style={{ marginBottom: 14, borderColor: "var(--accent)", background: "var(--bg)" }}>
             <span className="caption">{t("settings.copyTokenWarn")}</span>
