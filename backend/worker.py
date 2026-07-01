@@ -69,6 +69,9 @@ def _handle(job) -> dict:
     if kind == "reattribute_trakt_all":
         from app.networks import reattribute_all_trakt
         return reattribute_all_trakt()
+    if kind == "reattribute_hub_all":
+        from app.networks import reattribute_hub_events
+        return reattribute_hub_events()
     return {"status": "unknown_kind"}
 
 
@@ -144,10 +147,23 @@ def _enqueue_reattribute_trakt_all():
         "  AND status IN ('pending','running'))")
 
 
+def _enqueue_reattribute_hub_all():
+    """Queue a one-shot backfill that moves Home-Assistant-hub scrobble events
+    parked on the fallback provider onto their real streaming service, deduped
+    against any pending/running copy."""
+    from app.db import execute
+    execute(
+        "INSERT INTO background_jobs (kind, payload) "
+        "SELECT 'reattribute_hub_all', '{}'::jsonb WHERE NOT EXISTS ("
+        "  SELECT 1 FROM background_jobs WHERE kind='reattribute_hub_all' "
+        "  AND status IN ('pending','running'))")
+
+
 def main():
     print("[worker] started", flush=True)
     try:
         _enqueue_reattribute_trakt_all()
+        _enqueue_reattribute_hub_all()
     except Exception:  # noqa: BLE001
         traceback.print_exc()
     last_schedule = 0.0

@@ -406,3 +406,121 @@ def reattribute_all() -> dict:
 # Backwards-compatible aliases (older imports / job dispatch).
 reattribute_title_trakt_events = reattribute_title_events
 reattribute_all_trakt = reattribute_all
+
+
+# --- Home-Assistant hub re-attribution -------------------------------------
+#
+# Push-only hubs (Home Assistant) scrobble plays from many apps and tag each with
+# the real ``platform`` (e.g. ``nlziet``). ``handle_scrobble`` attributes the
+# committed event to that platform's provider — but when the provider row does
+# not exist yet at commit time (e.g. NLZiet before it was (re-)added) the event
+# falls back to the ``homeassistant`` hub bucket. Once the real provider exists we
+# move those parked events onto it so every aggregate counts the hours under the
+# real service instead of "Home Assistant".
+HUB_PROVIDER_KEYS = ("homeassistant",)
+
+
+def _recover_hub_platforms(cur, hub_id: str) -> int:
+    """Stamp ``raw.platform`` onto historical hub scrobble events that predate the
+    self-describing commit, recovered from the nearest committed
+    ``scrobble_session`` (same user + title, written in the same transaction so
+    their timestamps line up). Only recent events are recoverable — committed
+    sessions are pruned after a day — but events committed since the forward fix
+    already carry ``raw.platform`` and skip this path. Idempotent: only events
+    missing ``raw.platform`` are touched. Returns the number stamped."""
+    cur.execute(
+        "UPDATE watch_events we "
+        "SET raw = we.raw || jsonb_build_object('platform', ("
+        "    SELECT ss.platform_key FROM scrobble_sessions ss "
+        "    WHERE ss.provider_id = we.provider_id AND ss.user_id = we.user_id "
+        "      AND ss.title_id IS NOT DISTINCT FROM we.title_id "
+        "      AND ss.committed_at IS NOT NULL AND ss.platform_key IS NOT NULL "
+        "    ORDER BY abs(extract(epoch FROM (ss.committed_at - we.created_at))) "
+        "    LIMIT 1)) "
+        "WHERE we.provider_id = %s AND we.raw->>'scrobble' = 'true' "
+        "  AND (we.raw->>'platform') IS NULL AND we.deleted_at IS NULL "
+        "  AND EXISTS (SELECT 1 FROM scrobble_sessions ss "
+        "    WHERE ss.provider_id = we.provider_id AND ss.user_id = we.user_id "
+        "      AND ss.title_id IS NOT DISTINCT FROM we.title_id "
+        "      AND ss.committed_at IS NOT NULL AND ss.platform_key IS NOT NULL)",
+        (hub_id,))
+    return cur.rowcount
+
+
+def reattribute_hub_events() -> dict:
+    """Move Home-Assistant-hub scrobble events parked on the fallback
+    ``homeassistant`` provider onto their real streaming service, once that
+    provider exists.
+
+    Each event's intended platform comes from its own ``raw.platform`` (stored at
+    commit since the forward fix) or is recovered from the matching committed
+    ``scrobble_session`` for older events. An event is moved only when that
+    platform resolves to an existing provider other than the hub. Idempotent:
+    events already off the hub, or whose platform still has no provider, are left
+    alone. A hub event is collapsed (tombstoned) instead of moved when a real
+    (non-hub) sync already covers the same watch on the target provider, to avoid
+    double counting. Aggregates are recomputed for the hub and every target
+    provider over the affected days.
+
+    Returns a status dict with ``moved`` and ``collapsed`` counts."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id FROM providers WHERE key = 'homeassistant'")
+        hub = cur.fetchone()
+        if not hub:
+            return {"status": "no_hub", "moved": 0, "collapsed": 0}
+        hub_id = str(hub["id"])
+
+        _recover_hub_platforms(cur, hub_id)
+
+        # Parked hub scrobble events whose recovered platform maps to a real,
+        # existing, different provider.
+        cur.execute(
+            "SELECT we.id, we.user_id, we.title_id, we.episode_id, we.watched_date, "
+            "  p.id AS target_id "
+            "FROM watch_events we "
+            "JOIN providers p ON p.key = we.raw->>'platform' "
+            "WHERE we.provider_id = %s AND we.raw->>'scrobble' = 'true' "
+            "  AND we.deleted_at IS NULL AND p.id <> %s",
+            (hub_id, hub_id))
+        rows = cur.fetchall()
+        if not rows:
+            return {"status": "ok", "moved": 0, "collapsed": 0}
+
+        # (user_id, provider_id) -> affected dates, for the hub we drain and every
+        # target we fill, so the recompute touches exactly the right rollups.
+        recompute: dict[tuple[str, str], set] = {}
+
+        def _mark(uid: str, pid: str, date):
+            recompute.setdefault((uid, pid), set()).add(date)
+
+        moved = collapsed = 0
+        for r in rows:
+            uid = str(r["user_id"])
+            target = str(r["target_id"])
+            # Collapse the hub event when a *real* (non-hub-scrobble) event already
+            # covers this watch on the target provider. Other hub scrobble events
+            # are excluded so two migrating events don't cancel each other.
+            cur.execute(
+                "SELECT 1 FROM watch_events "
+                "WHERE user_id = %s AND title_id IS NOT DISTINCT FROM %s "
+                "  AND provider_id = %s AND watched_date = %s "
+                "  AND episode_id IS NOT DISTINCT FROM %s AND deleted_at IS NULL "
+                "  AND id <> %s AND COALESCE(raw->>'scrobble', '') <> 'true' LIMIT 1",
+                (uid, r["title_id"], target, r["watched_date"],
+                 r["episode_id"], r["id"]))
+            if cur.fetchone():
+                cur.execute("UPDATE watch_events SET deleted_at = now() WHERE id = %s",
+                            (r["id"],))
+                _mark(uid, hub_id, r["watched_date"])
+                collapsed += 1
+                continue
+            cur.execute("UPDATE watch_events SET provider_id = %s WHERE id = %s",
+                        (target, r["id"]))
+            _mark(uid, hub_id, r["watched_date"])
+            _mark(uid, target, r["watched_date"])
+            moved += 1
+
+        for (uid, pid), dates in recompute.items():
+            cur.execute("SELECT wv_recompute_agg_days(%s, %s, %s)", (uid, pid, list(dates)))
+
+    return {"status": "ok", "moved": moved, "collapsed": collapsed}

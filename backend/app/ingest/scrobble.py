@@ -332,7 +332,8 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
                 duration_seconds=evt.duration_seconds,
                 progress_percent=evt.progress_percent,
                 completed=True, tmdb_id=evt.tmdb_id,
-                raw={"source": evt.source, "scrobble": True},
+                raw={"source": evt.source, "scrobble": True,
+                     "platform": evt.platform_key},
             )
             # Commit on the SAME open cursor/transaction. Opening a second pooled
             # connection here would block forever: this transaction may hold an
@@ -401,7 +402,9 @@ def expire_stale_sessions(idle_minutes: int = 30,
                     episode_name=s["episode_name"],
                     duration_seconds=s["duration_seconds"],
                     progress_percent=progress, completed=True,
-                    tmdb_id=s["tmdb_id"], raw={"source": s["source"], "scrobble": True},
+                    tmdb_id=s["tmdb_id"],
+                    raw={"source": s["source"], "scrobble": True,
+                         "platform": s["platform_key"]},
                 )
                 # Same-transaction commit (see handle_scrobble): a first-seen title
                 # committed during expiry must not re-resolve on a second connection.
