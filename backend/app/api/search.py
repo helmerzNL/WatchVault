@@ -98,6 +98,38 @@ def search():
     })
 
 
+@bp.get("/facets")
+@require_perm("catalog.read")
+def facets():
+    """Distinct genres and release years present in the watched catalog for the
+    current scope, so the search page can offer dropdowns instead of free text.
+    Both lists are consistent with the filters in ``search()`` (genre matches
+    ``genres.name``; year matches ``titles.year``)."""
+    ids = [str(i) for i in scope_user_ids()]
+    if not ids:
+        return jsonify({"genres": [], "years": []})
+
+    genres = query_all(
+        "SELECT DISTINCT g.name FROM watch_events we "
+        "JOIN title_genres tg ON tg.title_id = we.title_id "
+        "JOIN genres g ON g.id = tg.genre_id "
+        "WHERE we.user_id = ANY(%s::uuid[]) AND we.deleted_at IS NULL "
+        "ORDER BY g.name",
+        (ids,),
+    )
+    years = query_all(
+        "SELECT DISTINCT t.year FROM watch_events we "
+        "JOIN titles t ON t.id = we.title_id "
+        "WHERE we.user_id = ANY(%s::uuid[]) AND we.deleted_at IS NULL "
+        "AND t.year IS NOT NULL ORDER BY t.year DESC",
+        (ids,),
+    )
+    return jsonify({
+        "genres": [g["name"] for g in genres],
+        "years": [int(y["year"]) for y in years],
+    })
+
+
 @bp.get("/title/<title_id>")
 @require_perm("catalog.read")
 def title_detail(title_id: str):
