@@ -116,11 +116,15 @@ def summary():
         "GROUP BY a.watched_date ORDER BY a.watched_date",
         (ids,),
     )
+    unfinished = [_unfinished_row(r) for r in _unfinished_query(ids)]
+    remaining_minutes = sum(u["remaining_minutes"] or 0 for u in unfinished)
     return jsonify({
         "totals": {
             "events": totals["events"], "movies": totals["movies"],
             "episodes": totals["episodes"], "titles": totals["titles"],
             "hours": _hours(totals["seconds"], 1),
+            "remaining_minutes": remaining_minutes,
+            "remaining_items": len(unfinished),
         },
         "this_month": {
             "events": month["events"],
@@ -459,21 +463,66 @@ def unfinished_titles():
     sorted by most-recent activity. Reads the ``title_progress`` rollup so this
     stays fast without live-aggregating raw events."""
     ids = _ids()
-    rows = query_all(
+    return jsonify([_unfinished_row(r) for r in _unfinished_query(ids)])
+
+
+def _unfinished_query(ids):
+    """Raw ``title_progress`` rows for the scoped profile(s), enriched with the
+    runtime metadata needed to work out what's still left to watch. Shared by the
+    ``/unfinished`` list and the summary "still to watch" tiles."""
+    if not ids:
+        return []
+    return query_all(
         "SELECT t.id, t.title, t.kind, t.year, t.poster_path, "
+        "  t.runtime_minutes AS title_runtime, "
         "  max(tp.watched_episodes) AS watched_episodes, "
         "  max(tp.total_episodes) AS total_episodes, "
-        "  max(tp.last_activity_at) AS last_activity_at "
+        "  max(tp.last_activity_at) AS last_activity_at, "
+        "  (SELECT avg(te.runtime_minutes) FROM title_episodes te "
+        "     WHERE te.title_id = t.id AND te.runtime_minutes IS NOT NULL) AS avg_ep_runtime, "
+        "  (SELECT max(ss.progress_percent) FROM scrobble_sessions ss "
+        "     WHERE ss.title_id = t.id AND ss.user_id = ANY(%s::uuid[]) "
+        "       AND ss.committed_at IS NULL) AS live_progress "
         "FROM title_progress tp JOIN titles t ON t.id = tp.title_id "
         "WHERE tp.user_id = ANY(%s::uuid[]) AND tp.status = 'in_progress' "
         "GROUP BY t.id ORDER BY max(tp.last_activity_at) DESC NULLS LAST, t.title",
-        (ids,),
+        (ids, ids),
     )
-    return jsonify([
-        {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
-         "poster": poster_url(r["poster_path"]),
-         "watched_episodes": int(r["watched_episodes"] or 0),
-         "total_episodes": int(r["total_episodes"] or 0),
-         "last_activity": r["last_activity_at"].isoformat() if r["last_activity_at"] else None}
-        for r in rows
-    ])
+
+
+def _unfinished_row(r) -> dict:
+    """Shape one "still watching" row, computing what's left to watch:
+
+    * **series** — remaining episodes (``total − watched``) and the time that
+      represents (remaining × average episode runtime, falling back to the title
+      runtime); percent = watched / total episodes.
+    * **movie** — percent comes from the live (uncommitted) scrobble session; the
+      minutes left are the title runtime scaled by the unwatched fraction.
+
+    ``remaining_minutes`` is ``None`` when no runtime metadata is known yet, so
+    the UI can omit it rather than show a misleading ``0``."""
+    kind = r["kind"]
+    watched = int(r["watched_episodes"] or 0)
+    total = int(r["total_episodes"] or 0)
+    title_rt = float(r["title_runtime"]) if r["title_runtime"] else None
+    avg_ep = float(r["avg_ep_runtime"]) if r["avg_ep_runtime"] is not None else None
+
+    if kind == "series":
+        remaining_eps = max(0, total - watched)
+        per_ep = avg_ep if avg_ep is not None else title_rt
+        remaining_minutes = int(round(remaining_eps * per_ep)) if per_ep else None
+        progress = int(round(watched / total * 100)) if total else 0
+    else:  # movie
+        prog = min(100.0, max(0.0, float(r["live_progress"] or 0)))
+        progress = int(round(prog))
+        remaining_eps = 0
+        remaining_minutes = int(round(title_rt * (1 - prog / 100))) if title_rt else None
+
+    return {
+        "id": str(r["id"]), "title": r["title"], "kind": kind, "year": r["year"],
+        "poster": poster_url(r["poster_path"]),
+        "watched_episodes": watched, "total_episodes": total,
+        "remaining_episodes": remaining_eps, "remaining_minutes": remaining_minutes,
+        "progress": progress,
+        "last_activity": r["last_activity_at"].isoformat() if r["last_activity_at"] else None,
+    }
