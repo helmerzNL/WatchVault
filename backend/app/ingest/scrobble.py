@@ -68,6 +68,31 @@ def _platform_from_app_id(app_id: Optional[str]) -> Optional[str]:
     return None
 
 
+# Services whose playback must never be recorded or surfaced in WatchVault.
+# YouTube arrives via the generic HA push and its Google bundle id
+# (com.google.*.youtube) is deliberately NOT in _APP_ID_PLATFORM, so without
+# this it would fall back to the Home Assistant / generic provider and show up in
+# Now Playing and history. Flag it as an ignored platform so handle_scrobble
+# drops the event and clears any lingering live session on the next tick.
+_IGNORED_PLATFORMS = {"youtube"}
+
+
+def _ignored_platform(body: dict, platform: Optional[str]) -> Optional[str]:
+    """Return the ignored-platform key (e.g. 'youtube') if this payload belongs to
+    a service WatchVault must not track, else None. Matches an explicit `platform`
+    or a substring of the HA `app_id` / `app_name` (covers YouTube, YouTube TV and
+    the various com.google.*.youtube bundle ids across tvOS / Android TV)."""
+    if (platform or "").strip().lower() in _IGNORED_PLATFORMS:
+        return (platform or "").strip().lower()
+    haystack = " ".join(
+        str(body.get(k) or "").lower() for k in ("app_id", "app_name")
+    )
+    for key in _IGNORED_PLATFORMS:
+        if key in haystack:
+            return key
+    return None
+
+
 @dataclass
 class ScrobbleEvent:
     """One push from a player, normalized across Plex / HA / AppleTV."""
@@ -202,6 +227,12 @@ def parse_generic_payload(body: dict) -> Optional[ScrobbleEvent]:
     platform = (body.get("platform") or "").strip() or None
     if not platform:
         platform = _platform_from_app_id(body.get("app_id"))
+    # Route ignored services (e.g. YouTube) through with a sentinel platform_key so
+    # handle_scrobble can drop the event AND delete any lingering live session,
+    # instead of silently returning None here (which would leave the current card).
+    ignored = _ignored_platform(body, platform)
+    if ignored:
+        platform = ignored
     return ScrobbleEvent(
         source=source, event=event,
         account_label=(body.get("account") or "").strip(),
@@ -314,6 +345,20 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
     state = state_for_event(evt.event)
     commit = should_commit(evt, threshold)
     committed = False
+    # Ignored services (YouTube, ...) must never be stored. Delete any live session
+    # that an earlier tick may have created for this exact playback so the card the
+    # household is watching right now disappears on the next tick, and never insert.
+    if (evt.platform_key or "").lower() in _IGNORED_PLATFORMS:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("SET LOCAL lock_timeout = '5s'")
+            cur.execute(
+                "DELETE FROM scrobble_sessions "
+                "WHERE household_id = %s AND source = %s "
+                "  AND account_label = %s AND dedup_key = %s",
+                (household_id, evt.source, evt.account_label, evt.dedup_key),
+            )
+        return {"ignored": True, "platform": evt.platform_key,
+                "state": state, "committed": False}
     with connection() as conn, conn.cursor() as cur:
         # Fail fast instead of hanging forever if this path ever contends on a
         # row/index lock (defense-in-depth; the structural fix is threading the

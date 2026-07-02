@@ -152,6 +152,36 @@ def test_parse_generic_unknown_app_id_leaves_platform_unset():
     assert "platform" not in evt.raw
 
 
+def test_parse_generic_youtube_app_id_is_flagged_ignored():
+    # YouTube arrives via HA with a Google bundle id; it must be flagged so
+    # handle_scrobble drops it and never surfaces it in Now Playing / history.
+    for app_id in ("com.google.ios.youtube", "com.google.android.youtube.tv"):
+        evt = parse_generic_payload({
+            "title": "Some clip", "event": "play", "app_id": app_id,
+        })
+        assert evt.platform_key == "youtube", app_id
+
+
+def test_parse_generic_youtube_app_name_or_platform_is_flagged():
+    by_name = parse_generic_payload({
+        "title": "Clip", "event": "play", "app_name": "YouTube",
+    })
+    assert by_name.platform_key == "youtube"
+    explicit = parse_generic_payload({
+        "title": "Clip", "event": "play", "platform": "YouTube",
+    })
+    assert explicit.platform_key == "youtube"
+
+
+def test_parse_generic_skyshowtime_not_flagged_as_ignored():
+    # Regression guard: the YouTube filter must not swallow tracked services.
+    evt = parse_generic_payload({
+        "title": "Some Show", "event": "play",
+        "app_id": "com.viaplay.skyshowtime.SkyShowtime",
+    })
+    assert evt.platform_key == "skyshowtime"
+
+
 def test_parse_generic_explicit_dedup_key_wins():
     evt = parse_generic_payload({"title": "X", "event": "play", "dedup_key": "k-1"})
     assert evt.dedup_key == "k-1"
@@ -434,6 +464,44 @@ def test_handle_scrobble_new_title_commits_in_one_transaction(monkeypatch):
     assert captured["cur"] is cur
     # lock_timeout hardening is set at the start of the transaction.
     assert any("lock_timeout" in s for s in cur.executed)
+
+
+def test_handle_scrobble_ignored_platform_deletes_and_skips_insert(monkeypatch):
+    # A YouTube tick must delete any lingering live session for this playback and
+    # NEVER insert a new scrobble_session (nothing surfaces in Now Playing/history).
+    cur = SmartCursor()
+
+    class FakeConn:
+        def cursor(self):
+            return cur
+        def commit(self):
+            pass
+        def rollback(self):
+            pass
+
+    import contextlib
+
+    @contextlib.contextmanager
+    def fake_connection():
+        yield FakeConn()
+
+    monkeypatch.setattr(_scrobble, "connection", fake_connection)
+
+    def _boom(*a, **k):
+        raise AssertionError("ignored event must not ingest a watch_event")
+    monkeypatch.setattr(_scrobble, "ingest_events", _boom)
+
+    evt = parse_generic_payload({
+        "title": "Some clip", "event": "play", "app_id": "com.google.ios.youtube",
+    })
+    result = _scrobble.handle_scrobble("hh-1", evt, "token-user")
+
+    assert result["ignored"] is True
+    assert result["platform"] == "youtube"
+    assert result["committed"] is False
+    # It deletes the lingering session and never inserts a new one.
+    assert any("DELETE FROM scrobble_sessions" in s for s in cur.executed)
+    assert not any("INSERT INTO scrobble_sessions" in s for s in cur.executed)
 
 
 # ── Keep now-playing visible after commit (this change) ─────────────────────
