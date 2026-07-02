@@ -454,6 +454,15 @@ const de = {
   "scrobble.playing": "Wiedergabe",
   "scrobble.stopped": "Gestoppt",
   "scrobble.lastPosition": "Letzte Position",
+  "scrobble.pickTitle": "Folge auswählen",
+  "scrobble.pickSeasonN": "Staffel {n}",
+  "scrobble.pickEpisodeN": "Folge {n}",
+  "scrobble.pickLoading": "Staffeln werden geladen…",
+  "scrobble.pickBackfilling": "Staffelinfos werden abgerufen…",
+  "scrobble.pickNone": "Keine Staffelinfos verfügbar.",
+  "scrobble.pickRetry": "Erneut versuchen",
+  "scrobble.pickSaved": "Folge aktualisiert",
+  "scrobble.pickFailed": "Folge konnte nicht aktualisiert werden",
 };
 
 export type Dict = Record<string, string>;

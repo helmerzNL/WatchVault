@@ -336,11 +336,16 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
             "  position_seconds = EXCLUDED.position_seconds, duration_seconds = EXCLUDED.duration_seconds, "
             "  state = EXCLUDED.state, year = COALESCE(EXCLUDED.year, scrobble_sessions.year), "
             "  tmdb_id = COALESCE(EXCLUDED.tmdb_id, scrobble_sessions.tmdb_id), "
-            "  kind = EXCLUDED.kind, season = EXCLUDED.season, "
-            "  episode = EXCLUDED.episode, episode_name = EXCLUDED.episode_name, "
+            # A hand-picked session (manual_episode) locks its kind/season/episode:
+            # keep the stored values so the next raw progress tick can't clobber the
+            # correction the household member made via the long-press picker.
+            "  kind = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.kind ELSE EXCLUDED.kind END, "
+            "  season = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.season ELSE EXCLUDED.season END, "
+            "  episode = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.episode ELSE EXCLUDED.episode END, "
+            "  episode_name = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.episode_name ELSE EXCLUDED.episode_name END, "
             "  updated_at = now(), "
             "  committed_at = CASE WHEN %s THEN NULL ELSE scrobble_sessions.committed_at END "
-            "RETURNING id, committed_at",
+            "RETURNING id, committed_at, season, episode, episode_name, kind, manual_episode",
             (household_id, user_id, provider_id, evt.source, evt.account_label,
              evt.platform_key, evt.raw_title, evt.kind, evt.season, evt.episode,
              evt.episode_name, evt.year, evt.tmdb_id,
@@ -350,24 +355,40 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
         row = cur.fetchone()
         session_id = row["id"]
         already_committed = row["committed_at"] is not None
+        # Effective season/episode: for a hand-picked (manual) session these are the
+        # locked values the DO UPDATE preserved; for a normal tick they equal evt.*.
+        eff_season = row["season"]
+        eff_episode = row["episode"]
+        eff_episode_name = row["episode_name"]
+        eff_kind = row["kind"]
+        manual = bool(row["manual_episode"])
 
         # Resolve (or create) the central title so the now-playing card can show
         # the series/movie poster, and kick off enrichment for fresh content so
-        # the poster appears while it is still playing.
-        title_id, _created = _resolve_session_title(cur, evt)
-        if title_id:
-            cur.execute("UPDATE scrobble_sessions SET title_id = %s WHERE id = %s",
-                        (title_id, session_id))
-            _maybe_enqueue_enrich(cur, title_id)
+        # the poster appears while it is still playing. A manual pick has already
+        # bound the session to the correct *series* title — never re-resolve it
+        # from the raw payload (which arrives as a movie for these providers).
+        if manual:
+            cur.execute("SELECT title_id FROM scrobble_sessions WHERE id = %s", (session_id,))
+            tr = cur.fetchone()
+            title_id = tr["title_id"] if tr else None
+            if title_id:
+                _maybe_enqueue_enrich(cur, title_id)
+        else:
+            title_id, _created = _resolve_session_title(cur, evt)
+            if title_id:
+                cur.execute("UPDATE scrobble_sessions SET title_id = %s WHERE id = %s",
+                            (title_id, session_id))
+                _maybe_enqueue_enrich(cur, title_id)
 
         if commit and not already_committed and user_id and provider_id:
             ne = NormalizedEvent(
-                raw_title=evt.episode_name or evt.raw_title,
+                raw_title=eff_episode_name or evt.raw_title,
                 clean_title=evt.raw_title,
                 watched_at=now_utc(),
-                kind="series" if evt.kind == "series" else "movie",
-                year=evt.year, season=evt.season, episode=evt.episode,
-                episode_name=evt.episode_name,
+                kind="series" if eff_kind == "series" else "movie",
+                year=evt.year, season=eff_season, episode=eff_episode,
+                episode_name=eff_episode_name,
                 duration_seconds=evt.duration_seconds,
                 progress_percent=evt.progress_percent,
                 completed=True, tmdb_id=evt.tmdb_id,

@@ -316,7 +316,10 @@ class SmartCursor:
         elif "scrobble_account_map" in s:
             self._last = {"user_id": "profile-1"}
         elif "INSERT INTO scrobble_sessions" in s:
-            self._last = {"id": "sess-1", "committed_at": None}
+            self._last = {"id": "sess-1", "committed_at": None,
+                          "kind": params[7], "season": params[8],
+                          "episode": params[9], "episode_name": params[10],
+                          "manual_episode": False}
         elif "FROM titles WHERE tmdb_id" in s:
             self._last = None
         elif "FROM titles WHERE kind" in s:
@@ -492,7 +495,8 @@ class CommittedSessionCursor(SmartCursor):
     def execute(self, sql, params=None):
         super().execute(sql, params)
         if "INSERT INTO scrobble_sessions" in _norm(sql):
-            self._last = {"id": "sess-1", "committed_at": "2024-01-01T00:00:00"}
+            self._last = {**(self._last or {"id": "sess-1"}),
+                          "committed_at": "2024-01-01T00:00:00"}
 
 
 def test_handle_scrobble_committed_update_tick_does_not_reingest(monkeypatch):
@@ -530,7 +534,7 @@ def test_now_playing_query_drops_committed_at_filter(monkeypatch):
     fake_row = {
         "id": "sess-1", "title_id": "title-42", "profile_name": "Alice",
         "user_id": "u-1", "account_label": None, "source": "homeassistant",
-        "provider_name": "Plex", "provider_color": "#e5a00d", "raw_title": "Dune",
+        "provider_name": "Plex", "provider_key": "plex", "provider_color": "#e5a00d", "raw_title": "Dune",
         "kind": "movie", "season": None, "episode": None, "episode_name": None,
         "year": 2024, "poster_path": None, "progress_percent": 95,
         "state": "playing", "updated_at": None,
@@ -624,8 +628,10 @@ def test_handle_scrobble_upsert_updates_attribution_on_later_tick(monkeypatch):
     upserts = [_norm(s) for s in cur.executed if "INSERT INTO scrobble_sessions" in _norm(s)]
     assert upserts, "expected a scrobble_sessions UPSERT"
     upsert = upserts[-1]
-    # The DO UPDATE SET overwrites the live attribution columns (not COALESCE'd).
-    assert "kind = EXCLUDED.kind" in upsert
-    assert "season = EXCLUDED.season" in upsert
-    assert "episode = EXCLUDED.episode" in upsert
-    assert "episode_name = EXCLUDED.episode_name" in upsert
+    # The DO UPDATE SET refreshes the live attribution columns from EXCLUDED for a
+    # normal (non-manual) session; a hand-picked (manual_episode) session keeps its
+    # locked values via the CASE guard.
+    assert "kind = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.kind ELSE EXCLUDED.kind END" in upsert
+    assert "season = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.season ELSE EXCLUDED.season END" in upsert
+    assert "episode = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.episode ELSE EXCLUDED.episode END" in upsert
+    assert "episode_name = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.episode_name ELSE EXCLUDED.episode_name END" in upsert

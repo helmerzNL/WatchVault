@@ -454,6 +454,15 @@ const en = {
   "scrobble.playing": "Playing",
   "scrobble.stopped": "Stopped",
   "scrobble.lastPosition": "Last position",
+  "scrobble.pickTitle": "Pick episode",
+  "scrobble.pickSeasonN": "Season {n}",
+  "scrobble.pickEpisodeN": "Episode {n}",
+  "scrobble.pickLoading": "Loading seasons…",
+  "scrobble.pickBackfilling": "Fetching season info…",
+  "scrobble.pickNone": "No season info available.",
+  "scrobble.pickRetry": "Retry",
+  "scrobble.pickSaved": "Episode updated",
+  "scrobble.pickFailed": "Could not update the episode",
 };
 
 export type Dict = Record<string, string>;

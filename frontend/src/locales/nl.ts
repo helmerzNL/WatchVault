@@ -454,6 +454,15 @@ const nl = {
   "scrobble.playing": "Speelt af",
   "scrobble.stopped": "Gestopt",
   "scrobble.lastPosition": "Laatst gezien tot",
+  "scrobble.pickTitle": "Aflevering kiezen",
+  "scrobble.pickSeasonN": "Seizoen {n}",
+  "scrobble.pickEpisodeN": "Aflevering {n}",
+  "scrobble.pickLoading": "Seizoenen laden…",
+  "scrobble.pickBackfilling": "Seizoensinfo ophalen…",
+  "scrobble.pickNone": "Geen seizoensinfo beschikbaar.",
+  "scrobble.pickRetry": "Opnieuw",
+  "scrobble.pickSaved": "Aflevering bijgewerkt",
+  "scrobble.pickFailed": "Kon de aflevering niet bijwerken",
 };
 
 export type Dict = Record<string, string>;

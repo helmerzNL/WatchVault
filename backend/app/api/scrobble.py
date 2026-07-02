@@ -95,7 +95,7 @@ def now_playing():
     user = current_user()
     rows = query_all(
         "SELECT s.*, u.display_name AS profile_name, p.name AS provider_name, "
-        "       p.color AS provider_color, t.poster_path "
+        "       p.key AS provider_key, p.color AS provider_color, t.poster_path "
         "FROM scrobble_sessions s "
         "LEFT JOIN users u ON u.id = s.user_id "
         "LEFT JOIN providers p ON p.id = s.provider_id "
@@ -118,6 +118,7 @@ def now_playing():
             "account_label": r["account_label"],
             "source": r["source"],
             "provider": r["provider_name"],
+            "provider_key": r["provider_key"],
             "provider_color": r["provider_color"],
             "title": r["raw_title"],
             "kind": r["kind"],
@@ -132,6 +133,117 @@ def now_playing():
         }
         for r in rows
     ])
+
+
+# ── Manual season/episode picker (long-press on a Now-playing card) ─────────
+
+def _session_for_household(session_id: str, household_id: str):
+    return query_one(
+        "SELECT * FROM scrobble_sessions WHERE id = %s AND household_id = %s",
+        (session_id, household_id))
+
+
+def _resolve_series_title(raw_title: str) -> tuple[str | None, int | None]:
+    """Find (or create) the central *series* title for a show name and make sure
+    TMDB enrichment is queued so its seasons/episodes get populated. SkyShowtime /
+    Videoland arrive via the generic push as a bare movie title with no S/E, so the
+    session's own title_id may point at a movie — the picker always works off the
+    series title resolved from the show name. Returns (title_id, tmdb_id)."""
+    from ..ingest.normalize import _resolve_title
+    from ..ingest.scrobble import _maybe_enqueue_enrich
+    name = (raw_title or "").strip()
+    if not name:
+        return None, None
+    with connection() as conn, conn.cursor() as cur:
+        title_id, _created = _resolve_title(cur, "series", name, None, None, {})
+        _maybe_enqueue_enrich(cur, title_id)
+        cur.execute("SELECT tmdb_id FROM titles WHERE id = %s", (title_id,))
+        row = cur.fetchone()
+        tmdb_id = row["tmdb_id"] if row else None
+    return str(title_id), tmdb_id
+
+
+@bp.get("/sessions/<session_id>/seasons")
+@require_perm("ingest.write")
+def session_seasons(session_id: str):
+    """Available seasons + episodes (from TMDB, via title_episodes) for a live
+    session's show, so the household member can correct which episode is playing."""
+    user = current_user()
+    session = _session_for_household(session_id, str(user["household_id"]))
+    if not session:
+        return jsonify({"error": "not_found"}), 404
+
+    title_id, tmdb_id = _resolve_series_title(session["raw_title"])
+    if not title_id:
+        return jsonify({"seasons": [], "reason": "no_title"})
+
+    eps = query_all(
+        "SELECT season, episode, name FROM title_episodes "
+        "WHERE title_id = %s AND episode IS NOT NULL "
+        "ORDER BY season, episode", (title_id,))
+
+    if not eps:
+        # Episodes not fetched yet: enrichment (queued above) or a dedicated
+        # episode backfill will fill them; tell the UI to show a loading state.
+        from .search import _queue_episode_backfill
+        if tmdb_id:
+            _queue_episode_backfill(title_id)
+        return jsonify({"seasons": [], "backfilling": True, "title_id": title_id})
+
+    by_season: dict[int, list] = {}
+    for e in eps:
+        by_season.setdefault(e["season"] or 0, []).append(
+            {"episode": e["episode"], "name": e["name"]})
+    seasons = [
+        {"season": s, "episodes": by_season[s], "episode_count": len(by_season[s])}
+        for s in sorted(by_season)
+    ]
+    return jsonify({
+        "title_id": title_id,
+        "current": {"season": session["season"], "episode": session["episode"]},
+        "seasons": seasons,
+    })
+
+
+@bp.post("/sessions/<session_id>/episode")
+@require_perm("ingest.write")
+def set_session_episode(session_id: str):
+    """Lock a hand-picked season/episode onto a live session and bind it to the
+    resolved series title. handle_scrobble then preserves this pick across ticks
+    and commits it (not the raw payload) when the play finishes."""
+    user = current_user()
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        season = int(body.get("season"))
+        episode = int(body.get("episode"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "bad_request", "message": "season and episode are required"}), 400
+
+    session = _session_for_household(session_id, str(user["household_id"]))
+    if not session:
+        return jsonify({"error": "not_found"}), 404
+
+    title_id, _tmdb = _resolve_series_title(session["raw_title"])
+    if not title_id:
+        return jsonify({"error": "no_title"}), 409
+
+    ep = query_one(
+        "SELECT id, name FROM title_episodes "
+        "WHERE title_id = %s AND season = %s AND episode = %s",
+        (title_id, season, episode))
+    if not ep:
+        return jsonify({"error": "unknown_episode"}), 404
+
+    execute(
+        "UPDATE scrobble_sessions SET title_id = %s, episode_id = %s, kind = 'series', "
+        "  season = %s, episode = %s, episode_name = %s, manual_episode = true, "
+        "  updated_at = now() WHERE id = %s AND household_id = %s",
+        (title_id, ep["id"], season, episode, ep["name"], session_id,
+         str(user["household_id"])))
+    return jsonify({
+        "ok": True, "title_id": title_id,
+        "season": season, "episode": episode, "episode_name": ep["name"],
+    })
 
 
 # ── Persistent progress (title/series pages) ────────────────────────────────

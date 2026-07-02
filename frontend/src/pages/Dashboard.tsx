@@ -1,5 +1,5 @@
-import { useState, useEffect, Fragment, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect, useRef, Fragment, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT, providerLabel } from "../lib/i18n";
 import { api } from "../lib/api";
@@ -9,6 +9,7 @@ import { Loading, ErrorState, Empty, Stat, Poster, Section, MonthNav, RangeSeg, 
 import { fmtHours, fmtNum, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
 import { IconChart, IconImport, IconLayout, IconCheck, IconRefresh } from "../components/icons";
 import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
+import { EpisodePicker } from "../components/EpisodePicker";
 import { resolveLayout, EditBlock } from "../components/LayoutEdit";
 
 type RecentRange = "week" | "month" | "year";
@@ -280,9 +281,47 @@ function MonthlyTitles({ scope }: { scope: string }) {
 // Expert-mode live layer: polls /scrobble/now-playing and shows what is playing
 // across the household right now. Renders nothing when Expert mode is off or
 // nothing is playing, so it stays invisible for non-expert users.
+// Providers whose HA push carries only a show title (no S/E): a long-press on the
+// Now-playing row opens a TMDB-driven picker to bind the concrete episode.
+const PICK_PROVIDERS = ["skyshowtime", "videoland"];
+
+// A Now-playing row that navigates on tap/click but opens the episode picker on a
+// ~500ms long-press (cancelled if the pointer moves, so scrolling still works).
+function LongPressRow({ inner, onOpen, onNavigate }: {
+  inner: ReactNode; onOpen: () => void; onNavigate: () => void;
+}) {
+  const timer = useRef<number | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const longFired = useRef(false);
+  const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+  return (
+    <div className="row np-row" role="link" tabIndex={0}
+      style={{ gap: 14, alignItems: "center", cursor: "pointer", userSelect: "none", WebkitUserSelect: "none", touchAction: "pan-y" }}
+      onPointerDown={(e) => {
+        longFired.current = false;
+        start.current = { x: e.clientX, y: e.clientY };
+        clear();
+        timer.current = window.setTimeout(() => { longFired.current = true; onOpen(); }, 500);
+      }}
+      onPointerMove={(e) => {
+        if (!start.current) return;
+        if (Math.abs(e.clientX - start.current.x) > 12 || Math.abs(e.clientY - start.current.y) > 12) clear();
+      }}
+      onPointerUp={() => { clear(); if (!longFired.current) onNavigate(); start.current = null; }}
+      onPointerLeave={clear}
+      onPointerCancel={() => { clear(); longFired.current = false; }}
+      onContextMenu={(e) => e.preventDefault()}
+      onKeyDown={(e) => { if (e.key === "Enter") onNavigate(); }}>
+      {inner}
+    </div>
+  );
+}
+
 function NowPlaying({ scope }: { scope: string }) {
   const { prefs } = useApp();
   const { t } = useT();
+  const navigate = useNavigate();
+  const [picker, setPicker] = useState<any | null>(null);
   const { data, refresh } = useFetch<any[]>(() => api.get("/scrobble/now-playing"), []);
 
   useEffect(() => {
@@ -325,6 +364,14 @@ function NowPlaying({ scope }: { scope: string }) {
               <span className="caption" style={{ flexShrink: 0, width: 42, textAlign: "right" }}>{Math.round(pct)}%</span>
             </>
           );
+          const eligible = s.title_id && PICK_PROVIDERS.includes(s.provider_key);
+          if (eligible) {
+            return (
+              <LongPressRow key={s.id} inner={inner}
+                onOpen={() => setPicker(s)}
+                onNavigate={() => navigate(`/title/${s.title_id}`)} />
+            );
+          }
           return s.title_id ? (
             <Link key={s.id} to={`/title/${s.title_id}`} className="row np-row" style={{ gap: 14, alignItems: "center" }}>
               {inner}
@@ -336,6 +383,9 @@ function NowPlaying({ scope }: { scope: string }) {
           );
         })}
       </div>
+      {picker && (
+        <EpisodePicker session={picker} onClose={() => setPicker(null)} onSaved={refresh} />
+      )}
     </Section>
   );
 }
