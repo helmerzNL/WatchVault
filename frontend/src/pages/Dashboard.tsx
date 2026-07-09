@@ -269,7 +269,7 @@ function UnknownTitles({ scope }: { scope: string }) {
           <div className="poster-grid">
             {data.map((u: any) => (
               <Poster key={u.id} to={`/title/${u.id}`} poster={u.poster} title={u.title} kind={u.kind}
-                enrichId={u.id}
+                enrichId={u.id} unknown
                 subtitle={u.events > 1 ? t("dashboard.unknownSeen", { count: u.events }) : (u.year ? String(u.year) : "")}
                 badge={t("common.unknown")} />
             ))}
