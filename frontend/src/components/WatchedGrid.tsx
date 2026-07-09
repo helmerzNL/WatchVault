@@ -46,7 +46,7 @@ export function WatchedGrid({ items, posKey, subtitle, badge }: {
       <div className="poster-grid">
         {matched.map((it) => (
           <Poster key={it.id} to={`/title/${it.id}`} poster={it.poster} title={it.title}
-            kind={it.kind} enrichId={it.id} subtitle={subtitle(it)} badge={badge?.(it)} />
+            kind={it.kind} enrichId={it.id} unknown={it.unknown} subtitle={subtitle(it)} badge={badge?.(it)} />
         ))}
       </div>
     );
@@ -77,7 +77,7 @@ export function WatchedGrid({ items, posKey, subtitle, badge }: {
       const it = byId.get(id)!;
       return (
         <Poster to={`/title/${it.id}`} poster={it.poster} title={it.title}
-          kind={it.kind} enrichId={it.id} subtitle={subtitle(it)} badge={badge?.(it)} />
+          kind={it.kind} enrichId={it.id} unknown={it.unknown} subtitle={subtitle(it)} badge={badge?.(it)} />
       );
     }
     return (

@@ -6,7 +6,7 @@ import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { enqueueEnrich } from "../lib/lazyEnrich";
 import { monthKey, monthLabel } from "../lib/format";
-import { IconFilm, IconTv, IconChevron } from "./icons";
+import { IconFilm, IconTv, IconChevron, IconPencil } from "./icons";
 
 export function Loading({ label }: { label?: string }) {
   const { t } = useT();
@@ -145,7 +145,7 @@ export function Stat({ value, label }: { value: ReactNode; label: string }) {
 }
 
 export function Poster({
-  poster, title, subtitle, badge, kind, to, enrichId, titleId,
+  poster, title, subtitle, badge, kind, to, enrichId, titleId, unknown,
 }: {
   poster?: string | null;
   title: string;
@@ -155,10 +155,12 @@ export function Poster({
   to?: string;
   enrichId?: string | null;
   titleId?: string | null;
+  unknown?: boolean;
 }) {
   const ref = useRef<HTMLAnchorElement | HTMLDivElement | null>(null);
   const { t } = useT();
-  const { prefs, toast } = useApp();
+  const { prefs, toast, can } = useApp();
+  const navigate = useNavigate();
 
   // The title id is needed to delete; prefer an explicit prop, fall back to the
   // enrich id (same value at every grid callsite) or parse it out of `to`.
@@ -166,8 +168,12 @@ export function Poster({
     titleId ?? enrichId ??
     (to ? to.match(/^\/title\/([^/?#]+)/)?.[1] ?? null : null);
   const canDelete = !!(prefs.expert && delId);
+  // Renaming, poster upload and moving to/from Unknown all need catalogue write.
+  const canManage = !!(can("ingest.write") && delId);
+  const canAct = canManage || canDelete;
 
   const [confirm, setConfirm] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const pressTimer = useRef<number | null>(null);
@@ -194,16 +200,16 @@ export function Poster({
     if (pressTimer.current) { window.clearTimeout(pressTimer.current); pressTimer.current = null; }
   };
 
-  // Long-press (touch or mouse-hold) opens the delete confirmation. Movement or
-  // an early release cancels it so scrolling never triggers a delete.
+  // Long-press (touch or mouse-hold) opens the action sheet. Movement or an
+  // early release cancels it so scrolling never triggers an action.
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!canDelete || e.button === 2) return;
+    if (!canAct || e.button === 2) return;
     longPressed.current = false;
     startPt.current = { x: e.clientX, y: e.clientY };
     clearTimer();
     pressTimer.current = window.setTimeout(() => {
       longPressed.current = true;
-      setConfirm(true);
+      setSheet(true);
     }, 550);
   };
   const onPointerMove = (e: React.PointerEvent) => {
@@ -216,9 +222,9 @@ export function Poster({
     if (longPressed.current) { e.preventDefault(); e.stopPropagation(); longPressed.current = false; }
   };
   const onContextMenu = (e: React.MouseEvent) => {
-    if (!canDelete) return;
+    if (!canAct) return;
     e.preventDefault();
-    setConfirm(true);
+    setSheet(true);
   };
 
   const doDelete = async () => {
@@ -237,9 +243,29 @@ export function Poster({
     }
   };
 
+  const toggleUnknown = async () => {
+    if (!delId) return;
+    const next = !unknown;
+    setBusy(true);
+    try {
+      await api.put(`/titles/${delId}/unknown`, { unknown: next });
+      setSheet(false);
+      // It moved buckets, so drop it from the current grid (like delete does).
+      setDeleted(true);
+      toast(next ? t("title.movedToUnknown", { title }) : t("title.removedFromUnknown", { title }), "ok");
+      window.dispatchEvent(new CustomEvent("watchvault:title-updated", { detail: delId }));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t("settings.failed"), "err");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const editTitle = () => { setSheet(false); if (delId) navigate(`/title/${delId}?edit=1`); };
+
   if (deleted) return null;
 
-  const pressHandlers = canDelete ? {
+  const pressHandlers = canAct ? {
     onPointerDown, onPointerMove,
     onPointerUp: clearTimer, onPointerCancel: clearTimer, onPointerLeave: clearTimer,
     onClickCapture, onContextMenu,
@@ -272,6 +298,19 @@ export function Poster({
   return (
     <>
       {tile}
+      {sheet && (
+        <TitleActionSheet
+          title={title}
+          unknown={!!unknown}
+          canManage={canManage}
+          canDelete={canDelete}
+          busy={busy}
+          onEdit={editTitle}
+          onToggleUnknown={toggleUnknown}
+          onDelete={() => { setSheet(false); setConfirm(true); }}
+          onClose={() => { if (!busy) setSheet(false); }}
+        />
+      )}
       {confirm && (
         <DeleteTitleConfirm
           title={title}
@@ -281,6 +320,58 @@ export function Poster({
         />
       )}
     </>
+  );
+}
+
+// Long-press action sheet for a media tile: edit title/poster, move the title
+// into or out of the derived "Unknown" category, or (Expert mode) delete it.
+function TitleActionSheet({
+  title, unknown, canManage, canDelete, busy,
+  onEdit, onToggleUnknown, onDelete, onClose,
+}: {
+  title: string; unknown: boolean; canManage: boolean; canDelete: boolean;
+  busy: boolean; onEdit: () => void; onToggleUnknown: () => void;
+  onDelete: () => void; onClose: () => void;
+}) {
+  const { t } = useT();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="cinema-scrim" onMouseDown={onClose}>
+      <div className="cinema-dialog card glass" onMouseDown={(e) => e.stopPropagation()}
+        style={{ maxWidth: 360 }}>
+        <strong style={{ fontSize: 17, display: "block", marginBottom: 4 }}>{title}</strong>
+        <p className="caption" style={{ margin: "0 0 14px" }}>{t("title.actions")}</p>
+        <div className="col" style={{ gap: 8 }}>
+          {canManage && (
+            <button className="btn-ghost" style={{ justifyContent: "flex-start" }}
+              disabled={busy} onClick={onEdit}>
+              <IconPencil width={16} height={16} /> {t("title.edit.heading")}
+            </button>
+          )}
+          {canManage && (
+            <button className="btn-ghost" style={{ justifyContent: "flex-start" }}
+              disabled={busy} onClick={onToggleUnknown}>
+              <IconTv width={16} height={16} />
+              {unknown ? t("title.removeFromUnknown") : t("title.moveToUnknown")}
+            </button>
+          )}
+          {canDelete && (
+            <button className="btn-danger" style={{ justifyContent: "flex-start" }}
+              disabled={busy} onClick={onDelete}>
+              {t("title.delete")}
+            </button>
+          )}
+          <button className="btn-ghost" style={{ justifyContent: "center", marginTop: 4 }}
+            disabled={busy} onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

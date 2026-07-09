@@ -193,3 +193,32 @@ def serve_poster(name: str):
     if not safe:
         return jsonify({"error": "not found"}), 404
     return send_from_directory(_posters_dir(), safe, max_age=3600)
+
+
+@bp.put("/titles/<title_id>/unknown")
+@require_perm("ingest.write")
+def set_unknown(title_id: str):
+    """Move a title into or out of the derived "Unknown" category by hand.
+
+    Body ``{"unknown": true|false|null}`` — ``true`` forces Unknown, ``false``
+    forces "known", and ``null`` clears the override so the automatic rule
+    (a series with no recognized season/episode) applies again.
+    """
+    body = request.get_json(silent=True) or {}
+    if "unknown" not in body:
+        return jsonify({"error": "unknown flag required"}), 400
+    value = body["unknown"]
+    if value is not None and not isinstance(value, bool):
+        return jsonify({"error": "unknown must be a boolean or null"}), 400
+
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM titles WHERE id = %s", (title_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "not found"}), 404
+        cur.execute(
+            "UPDATE titles SET manual_unknown = %s, updated_at = now() WHERE id = %s",
+            (value, title_id))
+        cur.execute("SELECT wv_title_is_unknown(%s) AS u", (title_id,))
+        effective = bool(cur.fetchone()["u"])
+    return jsonify({"ok": True, "unknown": effective, "manual_unknown": value})
+

@@ -237,7 +237,7 @@ export function Search() {
                 const plat = p0 ? providerLabelShort(t, p0.key, p0.name) : "";
                 return (
                   <Poster key={rt.id} to={`/title/${rt.id}`} poster={rt.poster} title={rt.title} kind={rt.kind}
-                    enrichId={rt.id}
+                    enrichId={rt.id} unknown={rt.unknown}
                     badge={mediaBadge(t, rt)}
                     subtitle={`${plat}${rt.last_watched ? " · " + fmtDate(rt.last_watched) : ""}`} />
                 );

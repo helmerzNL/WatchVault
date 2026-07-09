@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT, useGenre, providerLabel, mediaBadge } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
@@ -387,6 +387,9 @@ function TitleEditor({ ti, onDone }: { ti: any; onDone: () => void }) {
     fd.append("file", file);
     run(() => api.upload(`/titles/${ti.id}/poster`, fd), t("title.edit.saved"));
   };
+  const toggleUnknown = () =>
+    run(() => api.put(`/titles/${ti.id}/unknown`, { unknown: !ti.unknown }),
+      !ti.unknown ? t("title.movedToUnknown", { title: ti.title }) : t("title.removedFromUnknown", { title: ti.title }));
 
   return (
     <div className="card" style={{ marginBottom: 20 }}>
@@ -424,6 +427,13 @@ function TitleEditor({ ti, onDone }: { ti: any; onDone: () => void }) {
           </button>
         )}
       </div>
+      <label className="caption" style={{ display: "block", marginBottom: 4 }}>{t("title.edit.categoryLabel")}</label>
+      <div className="row wrap" style={{ gap: 8, alignItems: "center" }}>
+        <button className="btn-ghost btn-sm" disabled={busy} onClick={toggleUnknown}>
+          {ti.unknown ? t("title.removeFromUnknown") : t("title.moveToUnknown")}
+        </button>
+      </div>
+
       <p className="caption" style={{ marginTop: 10, marginBottom: 0 }}>{t("title.edit.hint")}</p>
     </div>
   );
@@ -431,6 +441,7 @@ function TitleEditor({ ti, onDone }: { ti: any; onDone: () => void }) {
 
 export function TitleDetail() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { scope, can, toast, prefs } = useApp();
   const { t, lang } = useT();
   const tGenre = useGenre();
@@ -439,7 +450,7 @@ export function TitleDetail() {
   const { data: providers } = useFetch<any[]>(() => api.get("/providers"), []);
   const [enriching, setEnriching] = useState(false);
   const [syncingTrakt, setSyncingTrakt] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(searchParams.get("edit") === "1");
 
   // Expert-mode progress layer: fetch this title's persistent progress. Unlike
   // now-playing, /scrobble/progress keeps returning the last known position
@@ -453,6 +464,17 @@ export function TitleDetail() {
     const iv = setInterval(() => { refreshLive(); }, 5000);
     return () => clearInterval(iv);
   }, [prefs.expert, refreshLive]);
+
+  // Opened from a long-press "Edit" action (?edit=1): consume the flag so a
+  // reload or back-navigation doesn't force the editor open again.
+  useEffect(() => {
+    if (searchParams.get("edit") === "1") {
+      const next = new URLSearchParams(searchParams);
+      next.delete("edit");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canEdit = can("ingest.write");
   const targetBody = () => (scope && scope !== "all" ? { user_id: scope } : {});
