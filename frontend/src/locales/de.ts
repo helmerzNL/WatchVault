@@ -466,6 +466,24 @@ const de = {
   "scrobble.pickRetry": "Erneut versuchen",
   "scrobble.pickSaved": "Folge aktualisiert",
   "scrobble.pickFailed": "Folge konnte nicht aktualisiert werden",
+  // ── Media tags & settings tabs ──
+  "common.unknown": "Unbekannt",
+  "settings.tags": "Tags",
+  "settings.tabs.display": "Anzeige",
+  "settings.tabs.settings": "Einstellungen",
+  "settings.tabs.logs": "Protokolle",
+  "settings.tabs.profile": "Profil",
+  "settings.emptyTab": "Hier gibt es nichts einzustellen.",
+  "tags.label": "Tag",
+  "tags.add": "Tag",
+  "tags.allAssigned": "Alle Tags zugewiesen",
+  "tags.newPlaceholder": "Neuer Tag…",
+  "tags.create": "Erstellen",
+  "tags.manageHelp": "Erstelle Tags, um Titel, Staffeln und Episoden zu ordnen.",
+  "tags.none": "Noch keine Tags.",
+  "tags.uses": "{n}-mal verwendet",
+  "tags.deleteConfirm": "Diesen Tag löschen? Er wird noch {n}-mal verwendet.",
+
 };
 
 export type Dict = Record<string, string>;

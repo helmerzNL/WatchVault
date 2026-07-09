@@ -66,14 +66,16 @@ export function ErrorState({ error, retry }: { error: unknown; retry?: () => voi
   );
 }
 
-export function Section({ title, right, children }: { title: string; right?: ReactNode; children?: ReactNode }) {
+export function Section({ title, right, children, bare }: { title: string; right?: ReactNode; children?: ReactNode; bare?: boolean }) {
   return (
     <>
+      {!bare && (
       <div className="section-head">
         <h2 className="title">{title}</h2>
         <div className="spacer" />
         {right}
       </div>
+      )}
       {children}
     </>
   );

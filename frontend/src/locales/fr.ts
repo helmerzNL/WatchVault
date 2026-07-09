@@ -466,6 +466,24 @@ const fr = {
   "scrobble.pickRetry": "Réessayer",
   "scrobble.pickSaved": "Épisode mis à jour",
   "scrobble.pickFailed": "Impossible de mettre à jour l’épisode",
+  // ── Media tags & settings tabs ──
+  "common.unknown": "Inconnu",
+  "settings.tags": "Étiquettes",
+  "settings.tabs.display": "Affichage",
+  "settings.tabs.settings": "Réglages",
+  "settings.tabs.logs": "Journaux",
+  "settings.tabs.profile": "Profil",
+  "settings.emptyTab": "Rien à configurer ici.",
+  "tags.label": "Étiquette",
+  "tags.add": "Étiquette",
+  "tags.allAssigned": "Toutes les étiquettes ajoutées",
+  "tags.newPlaceholder": "Nouvelle étiquette…",
+  "tags.create": "Créer",
+  "tags.manageHelp": "Créez des étiquettes pour organiser vos titres, saisons et épisodes.",
+  "tags.none": "Aucune étiquette pour l’instant.",
+  "tags.uses": "{n} utilisations",
+  "tags.deleteConfirm": "Supprimer cette étiquette ? Elle est encore utilisée {n} fois.",
+
 };
 
 export type Dict = Record<string, string>;

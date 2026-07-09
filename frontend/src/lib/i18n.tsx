@@ -118,3 +118,11 @@ export function providerLabelShort(t: TFn, key: string | undefined, name: string
     return t("provider.digitalLibraryShort");
   return providerLabel(t, key, name);
 }
+
+// The badge label for a media item: TV programmes without a recognised
+// season/episode are grouped under the derived "Unknown" category; otherwise
+// they show as a film or a series.
+export function mediaBadge(t: TFn, item: { kind?: string; unknown?: boolean }): string {
+  if (item.unknown) return t("common.unknown");
+  return item.kind === "movie" ? t("common.film") : t("common.series");
+}

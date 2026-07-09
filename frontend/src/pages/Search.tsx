@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT, providerLabelShort, useGenre } from "../lib/i18n";
+import { useT, providerLabelShort, useGenre, mediaBadge } from "../lib/i18n";
 import { api } from "../lib/api";
 import { Loading, Empty, Poster, ErrorState } from "../components/ui";
 import { IconSearch } from "../components/icons";
@@ -23,7 +23,9 @@ export function Search() {
   const [platform, setPlatform] = useState(() => searchParams.get("platform") || "");
   const [year, setYear] = useState(() => searchParams.get("year") || "");
   const [kind, setKind] = useState(() => searchParams.get("kind") || "");
+  const [tag, setTag] = useState(() => searchParams.get("tag") || "");
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [tagOptions, setTagOptions] = useState<{ id: string; name: string }[]>([]);
   const [genreOptions, setGenreOptions] = useState<string[]>([]);
   const [yearOptions, setYearOptions] = useState<number[]>([]);
 
@@ -37,6 +39,7 @@ export function Search() {
   const reqRef = useRef(0);
 
   useEffect(() => { api.get("/providers").then(setProviders).catch(() => {}); }, []);
+  useEffect(() => { api.get("/tags").then(setTagOptions).catch(() => {}); }, []);
 
   // Available genres / release years for the current scope, driving the filter
   // dropdowns so users pick from what they've actually watched.
@@ -70,11 +73,12 @@ export function Search() {
     if (platform) next.platform = platform;
     if (year) next.year = year;
     if (kind) next.kind = kind;
+    if (tag) next.tag = tag;
     setSearchParams(next, { replace: true });
-  }, [q, genre, actor, platform, year, kind, setSearchParams]);
+  }, [q, genre, actor, platform, year, kind, tag, setSearchParams]);
 
-  const params = useMemo(() => ({ profile: scope, q, genre, actor, platform, year, kind, lang }),
-    [scope, q, genre, actor, platform, year, kind, lang]);
+  const params = useMemo(() => ({ profile: scope, q, genre, actor, platform, year, kind, tag, lang }),
+    [scope, q, genre, actor, platform, year, kind, tag, lang]);
 
   // Plex + Jellyfin are presented as one "Digital Library" option; selecting it
   // filters on either (the backend expands the `digital_library` key).
@@ -95,7 +99,7 @@ export function Search() {
 
   // debounced page-0 (re)load whenever filters change
   useEffect(() => {
-    const hasFilter = q || genre || actor || platform || year || kind;
+    const hasFilter = q || genre || actor || platform || year || kind || tag;
     const id = ++reqRef.current;
     const handle = setTimeout(async () => {
       setLoading(true); setError(null);
@@ -143,10 +147,10 @@ export function Search() {
     return () => obs.disconnect();
   }, [hasMore, results, loadingMore, loading, params]);
 
-  const activeFilters = [genre, actor, platform, year, kind].filter(Boolean).length;
+  const activeFilters = [genre, actor, platform, year, kind, tag].filter(Boolean).length;
 
   function clearAll() {
-    setQ(""); setGenre(""); setActor(""); setPlatform(""); setYear(""); setKind("");
+    setQ(""); setGenre(""); setActor(""); setPlatform(""); setYear(""); setKind(""); setTag("");
   }
 
   return (
@@ -171,6 +175,7 @@ export function Search() {
               <option value="">{t("search.all")}</option>
               <option value="movie">{t("common.movies")}</option>
               <option value="series">{t("common.series")}</option>
+              <option value="unknown">{t("common.unknown")}</option>
             </select>
           </div>
           <div>
@@ -198,6 +203,15 @@ export function Search() {
               {yearSelectOptions.map((y) => <option key={y} value={String(y)}>{y}</option>)}
             </select>
           </div>
+          {tagOptions.length > 0 && (
+            <div>
+              <label>{t("tags.label")}</label>
+              <select value={tag} onChange={(e) => setTag(e.target.value)}>
+                <option value="">{t("search.any")}</option>
+                {tagOptions.map((tg) => <option key={tg.id} value={tg.id}>{tg.name}</option>)}
+              </select>
+            </div>
+          )}
         </div>
         {activeFilters > 0 && (
           <div className="row" style={{ marginTop: 14 }}>
@@ -224,7 +238,7 @@ export function Search() {
                 return (
                   <Poster key={rt.id} to={`/title/${rt.id}`} poster={rt.poster} title={rt.title} kind={rt.kind}
                     enrichId={rt.id}
-                    badge={rt.kind === "movie" ? t("common.film") : t("common.series")}
+                    badge={mediaBadge(t, rt)}
                     subtitle={`${plat}${rt.last_watched ? " · " + fmtDate(rt.last_watched) : ""}`} />
                 );
               })}

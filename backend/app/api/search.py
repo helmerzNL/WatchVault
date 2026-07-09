@@ -25,6 +25,7 @@ def search():
     platform = (request.args.get("platform") or "").strip()
     year = request.args.get("year")
     kind = (request.args.get("kind") or "").strip()
+    tag = (request.args.get("tag") or "").strip()
     lang = (request.args.get("lang") or "en").strip()[:2]
     limit = min(int(request.args.get("limit", 60)), 200)
     offset = max(int(request.args.get("offset", 0)), 0)
@@ -60,13 +61,24 @@ def search():
     if year:
         where.append("t.year = %s")
         params.append(int(year))
-    if kind:
+    if kind == "unknown":
+        where.append("wv_title_is_unknown(t.id)")
+    elif kind:
         where.append("t.kind = %s")
         params.append(kind)
+    if tag:
+        # Match titles tagged directly, or via any of their seasons/episodes.
+        where.append(
+            "(EXISTS (SELECT 1 FROM title_tags tt WHERE tt.title_id = t.id AND tt.tag_id = %s::uuid) "
+            " OR EXISTS (SELECT 1 FROM season_tags st WHERE st.title_id = t.id AND st.tag_id = %s::uuid) "
+            " OR EXISTS (SELECT 1 FROM episode_tags et JOIN title_episodes te ON te.id = et.episode_id "
+            "            WHERE te.title_id = t.id AND et.tag_id = %s::uuid))")
+        params += [tag, tag, tag]
 
     clause = " AND ".join(where)
     rows = query_all(
         f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, t.overview, t.overviews, "
+        f"  wv_title_is_unknown(t.id) AS unknown, "
         f"  count(*) AS events, max(we.watched_date) AS last_watched, "
         f"  COALESCE(sum({EFF_SECONDS}),0) AS seconds, "
         f"  array_agg(DISTINCT jsonb_build_object('key', p.key, 'name', p.name)) AS platforms "
@@ -89,6 +101,7 @@ def search():
         "results": [
             {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
              "poster": poster_url(r["poster_path"]),
+             "unknown": bool(r["unknown"]),
              "overview": (r["overviews"] or {}).get(lang) or r["overview"],
              "events": int(r["events"]), "last_watched": r["last_watched"].isoformat(),
              "hours": round(float(r["seconds"] or 0) / 3600, 2),
@@ -173,6 +186,17 @@ def title_detail(title_id: str):
 
     seasons = _series_seasons(title_id, t, ids) if t["kind"] == "series" else []
 
+    # Attach household tags: title-level, per-season and per-episode.
+    from .tags import tags_for_title, season_tags_map, episode_tags_map
+    hid = str(current_user()["household_id"])
+    title_tags = tags_for_title(title_id, hid)
+    if t["kind"] == "series" and seasons:
+        s_map = season_tags_map(title_id, hid)
+        e_map = episode_tags_map(title_id, hid)
+        for s in seasons:
+            s["tags"] = s_map.get(int(s["season"]), [])
+            for ep in s["episodes"]:
+                ep["tags"] = e_map.get(str(ep["id"]), [])
     # Distinct watch dates for a movie, so each can be shown and individually
     # removed (series do this per episode in the season tree below).
     watch_dates: list[str] = []
@@ -213,6 +237,8 @@ def title_detail(title_id: str):
             override = {"id": str(op["id"]), "key": op["key"], "name": op["name"]}
     return jsonify({
         "id": str(t["id"]), "title": t["title"], "kind": t["kind"], "year": t["year"],
+        "unknown": bool(query_one("SELECT wv_title_is_unknown(%s) AS u", (title_id,))["u"]),
+        "tags": title_tags,
         "overview": overview, "overviews": overviews,
         "poster": poster_url(t["poster_path"]),
         "backdrop": poster_url(t["backdrop_path"], "w780"),

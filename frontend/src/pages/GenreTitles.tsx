@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT, useGenre } from "../lib/i18n";
+import { useT, useGenre, mediaBadge } from "../lib/i18n";
 import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, Poster, BackLink } from "../components/ui";
@@ -30,7 +30,7 @@ export function GenreTitles() {
             <Poster key={m.id} to={`/title/${m.id}`} poster={m.poster} title={m.title} kind={m.kind}
               enrichId={m.id}
               subtitle={m.kind === "movie" ? `${m.year || ""}` : `${m.episodes} ep · ${fmtHours(m.hours)}`}
-              badge={m.kind === "movie" ? t("common.film") : t("common.series")} />
+              badge={mediaBadge(t, m)} />
           ))}
         </div>
       ) : <p className="muted">{t("genre.empty")}</p>}

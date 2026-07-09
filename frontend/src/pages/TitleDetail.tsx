@@ -1,9 +1,10 @@
 import { useParams, Link } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT, useGenre, providerLabel } from "../lib/i18n";
+import { useT, useGenre, providerLabel, mediaBadge } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, BackLink } from "../components/ui";
+import { TagChips } from "../components/TagChips";
 import { IconSparkles, IconCheck, IconRefresh, IconPlus, IconClose } from "../components/icons";
 import { fmtDate, todayLocalKey, localDateKey } from "../lib/format";
 import { useState, useEffect } from "react";
@@ -208,6 +209,8 @@ function platformDropdown(providers: any[], kind: string, currentId: string) {
 
 type Ctl = {
   canEdit: boolean;
+  titleId: string;
+  reload: () => void;
   addEpisode: (episodeId: string, date: string) => Promise<void>;
   addSeason: (season: number, date: string) => Promise<void>;
   removeEpisode: (episodeId: string, date: string) => void;
@@ -266,6 +269,10 @@ function EpisodeRow({ ep, ctl, live }: { ep: any; ctl: Ctl; live?: any }) {
         {meta.length > 0 && <span className="caption">{meta.join(" · ")}</span>}
         {ep.overview && <p className="episode-overview">{ep.overview}</p>}
         {live && <LiveNowBar live={live} compact />}
+        <TagChips tags={ep.tags || []} canEdit={ctl.canEdit}
+          attach={(tagId) => api.post(`/episodes/${ep.id}/tags/${tagId}`)}
+          detach={(tagId) => api.del(`/episodes/${ep.id}/tags/${tagId}`)}
+          onChange={ctl.reload} />
         {(!ctl.canEdit || dates.length === 0) && (
           <span className={`episode-status ${ep.watched ? "on" : ""}`}>
             {dates.length > 0
@@ -325,6 +332,12 @@ function Seasons({ seasons, ctl, live }: { seasons: any[]; ctl: Ctl; live?: Map<
                 label={t("title.markSeasonWatched")} />
             </div>
           )}
+          <div style={{ marginTop: 10 }}>
+            <TagChips tags={current.tags || []} canEdit={ctl.canEdit}
+              attach={(tagId) => api.post(`/titles/${ctl.titleId}/seasons/${current.season}/tags/${tagId}`)}
+              detach={(tagId) => api.del(`/titles/${ctl.titleId}/seasons/${current.season}/tags/${tagId}`)}
+              onChange={ctl.reload} />
+          </div>
         </div>
         <div className="episode-list">
           {current.episodes.map((ep: any) => (
@@ -417,6 +430,8 @@ export function TitleDetail() {
 
   const ctl: Ctl = {
     canEdit,
+    titleId: id!,
+    reload,
     addEpisode: async (episodeId, date) => {
       try {
         await api.post(`/episodes/${episodeId}/watch`, { ...targetBody(), date });
@@ -466,7 +481,7 @@ export function TitleDetail() {
           <div className="col" style={{ gap: 8 }}>
             <h1 className="large-title">{ti.title}</h1>
             <div className="row wrap" style={{ gap: 8 }}>
-              <span className="chip" style={{ minHeight: 0, padding: "2px 10px" }}>{ti.kind === "movie" ? t("common.film") : t("common.series")}</span>
+              <span className="chip" style={{ minHeight: 0, padding: "2px 10px" }}>{mediaBadge(t, ti)}</span>
               {ti.year && <span className="chip" style={{ minHeight: 0, padding: "2px 10px" }}>{ti.year}</span>}
               {ti.runtime_minutes && <span className="chip" style={{ minHeight: 0, padding: "2px 10px" }}>{t("title.min", { n: ti.runtime_minutes })}</span>}
             </div>
@@ -482,6 +497,10 @@ export function TitleDetail() {
                 ))}
               </div>
             )}
+            <TagChips tags={ti.tags || []} canEdit={canEdit}
+              attach={(tagId) => api.post(`/titles/${id}/tags/${tagId}`)}
+              detach={(tagId) => api.del(`/titles/${id}/tags/${tagId}`)}
+              onChange={reload} />
           </div>
         </div>
       </div>

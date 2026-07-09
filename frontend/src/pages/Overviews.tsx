@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT, useGenre, providerLabel } from "../lib/i18n";
+import { useT, useGenre, providerLabel, mediaBadge } from "../lib/i18n";
 import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { TrendArea, StackedBars } from "../components/charts";
@@ -136,7 +136,7 @@ function DailyHeatmap({ scope }: { scope: string }) {
             dayMedia.data && dayMedia.data.length ? (
               <WatchedGrid items={dayMedia.data} posKey="day"
                 subtitle={(m) => m.kind === "movie" ? `${m.year || ""}` : `${m.episodes} ep · ${fmtHours(m.hours ?? 0)}`}
-                badge={(m) => m.kind === "movie" ? t("common.film") : t("common.series")} />
+                badge={(m) => mediaBadge(t, m)} />
             ) : <p className="muted">{t("overviews.nothingOnDay")}</p>}
         </div>
       )}
@@ -157,7 +157,7 @@ function MonthlyTitles({ scope }: { scope: string }) {
         data && data.length ? (
           <WatchedGrid items={data} posKey="month"
             subtitle={(t2) => t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours ?? 0)}`}
-            badge={(t2) => t2.kind === "movie" ? t("common.film") : t("common.series")} />
+            badge={(t2) => mediaBadge(t, t2)} />
         ) : <p className="muted">{t("overviews.nothingIn", { month: monthLabel(month) })}</p>}
     </Section>
   );

@@ -466,6 +466,24 @@ const nl = {
   "scrobble.pickRetry": "Opnieuw",
   "scrobble.pickSaved": "Aflevering bijgewerkt",
   "scrobble.pickFailed": "Kon de aflevering niet bijwerken",
+  // ── Media tags & settings tabs ──
+  "common.unknown": "Onbekend",
+  "settings.tags": "Tags",
+  "settings.tabs.display": "Weergave",
+  "settings.tabs.settings": "Instellingen",
+  "settings.tabs.logs": "Logs",
+  "settings.tabs.profile": "Profiel",
+  "settings.emptyTab": "Hier is niets in te stellen.",
+  "tags.label": "Tag",
+  "tags.add": "Tag",
+  "tags.allAssigned": "Alle tags toegewezen",
+  "tags.newPlaceholder": "Nieuwe tag…",
+  "tags.create": "Aanmaken",
+  "tags.manageHelp": "Maak tags om je titels, seizoenen en afleveringen te ordenen.",
+  "tags.none": "Nog geen tags.",
+  "tags.uses": "{n} keer gebruikt",
+  "tags.deleteConfirm": "Deze tag verwijderen? Hij wordt nog {n} keer gebruikt.",
+
 };
 
 export type Dict = Record<string, string>;

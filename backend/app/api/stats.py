@@ -328,6 +328,7 @@ def month_titles():
         return jsonify({"error": "month=YYYY-MM required"}), 400
     rows = query_all(
         f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, t.tmdb_id, "
+        f"  wv_title_is_unknown(t.id) AS unknown, "
         f"  count(*) AS events, "
         f"  count(*) FILTER (WHERE we.item_kind='episode') AS episodes, "
         f"  max(we.watched_date) AS last_watched, "
@@ -341,6 +342,7 @@ def month_titles():
     return jsonify([
         {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
          "poster": poster_url(r["poster_path"]), "matched": r["tmdb_id"] is not None,
+         "unknown": bool(r["unknown"]),
          "events": int(r["events"]),
          "episodes": int(r["episodes"]), "last_watched": r["last_watched"].isoformat(),
          "hours": _hours(r["seconds"])}
@@ -358,6 +360,7 @@ def day_titles():
         return jsonify({"error": "date=YYYY-MM-DD required"}), 400
     rows = query_all(
         f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, t.tmdb_id, "
+        f"  wv_title_is_unknown(t.id) AS unknown, "
         f"  count(*) AS events, "
         f"  count(*) FILTER (WHERE we.item_kind='episode') AS episodes, "
         f"  COALESCE(sum({EFF_SECONDS}),0) AS seconds "
@@ -370,6 +373,7 @@ def day_titles():
     return jsonify([
         {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
          "poster": poster_url(r["poster_path"]), "matched": r["tmdb_id"] is not None,
+         "unknown": bool(r["unknown"]),
          "events": int(r["events"]),
          "episodes": int(r["episodes"]),
          "hours": _hours(r["seconds"])}
@@ -436,6 +440,7 @@ def genre_titles():
     g = query_one("SELECT name FROM genres WHERE id = %s::uuid", (genre_id,))
     rows = query_all(
         f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, "
+        f"  wv_title_is_unknown(t.id) AS unknown, "
         f"  count(*) AS events, "
         f"  count(*) FILTER (WHERE we.item_kind='episode') AS episodes, "
         f"  max(we.watched_date) AS last_watched, "
@@ -451,6 +456,7 @@ def genre_titles():
         "titles": [
             {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
              "poster": poster_url(r["poster_path"]), "events": int(r["events"]),
+             "unknown": bool(r["unknown"]),
              "episodes": int(r["episodes"]), "hours": _hours(r["seconds"])}
             for r in rows
         ],
@@ -487,6 +493,7 @@ def _unfinished_query(ids):
         "       AND ss.committed_at IS NULL) AS live_progress "
         "FROM title_progress tp JOIN titles t ON t.id = tp.title_id "
         "WHERE tp.user_id = ANY(%s::uuid[]) AND tp.status = 'in_progress' "
+        "  AND NOT wv_title_is_unknown(t.id) "
         "GROUP BY t.id ORDER BY max(tp.last_activity_at) DESC NULLS LAST, t.title",
         (ids, ids),
     )

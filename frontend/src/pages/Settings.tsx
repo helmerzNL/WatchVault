@@ -5,7 +5,8 @@ import { useT, providerLabel } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Section } from "../components/ui";
-import { IconFilm, IconTv } from "../components/icons";
+import { IconFilm, IconTv, IconClose, IconChevron } from "../components/icons";
+import { TagPill } from "../components/TagChips";
 import { ACCENTS, fmtDate } from "../lib/format";
 
 function Appearance() {
@@ -100,7 +101,7 @@ function Household() {
   );
 }
 
-function Plugins() {
+function Plugins({ bare }: { bare?: boolean } = {}) {
   const { can, toast } = useApp();
   const { t } = useT();
   const plugins = useFetch<any[]>(() => api.get("/plugins"), []);
@@ -124,7 +125,7 @@ function Plugins() {
   }
 
   return (
-    <Section title={t("settings.plugins")}>
+    <Section title={bare ? "" : t("settings.plugins")} bare={bare}>
       <div className="card col" style={{ gap: 0 }}>
         {(plugins.data || []).map((p) => (
           <div key={p.id} className="list-row" style={{ flexWrap: "wrap" }}>
@@ -177,10 +178,10 @@ function Account() {
   );
 }
 
-function AttributionLog() {
+function AttributionLog({ embedded }: { embedded?: boolean } = {}) {
   const { can, toast, prefs } = useApp();
   const { t } = useT();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!embedded);
   const [filter, setFilter] = useState<"all" | "other">("other");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [history, setHistory] = useState<Record<string, any[]>>({});
@@ -262,7 +263,7 @@ function AttributionLog() {
 
   return (
     <Section title={t("attrib.title")}
-      right={<button className="btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}>
+      right={embedded ? undefined : <button className="btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}>
         {open ? t("common.collapse") : t("common.expand")}</button>}>
       {open && (
       <div className="card col" style={{ gap: 14 }}>
@@ -392,7 +393,7 @@ function DangerZone() {
   );
 }
 
-function ScrobbleSettings() {
+function ScrobbleSettings({ bare }: { bare?: boolean } = {}) {
   const { prefs, can, toast } = useApp();
   const { t } = useT();
   const profiles = useFetch<any[]>(() => api.get("/profiles"), []);
@@ -441,7 +442,7 @@ function ScrobbleSettings() {
   ];
 
   return (
-    <Section title={t("scrobble.title")}>
+    <Section title={bare ? "" : t("scrobble.title")} bare={bare}>
       <div className="card col" style={{ gap: 18 }}>
         <p className="caption">{t("scrobble.help")}</p>
 
@@ -518,18 +519,150 @@ function ScrobbleSettings() {
   );
 }
 
+function TagManager() {
+  const { can, toast } = useApp();
+  const { t } = useT();
+  const tags = useFetch<any[]>(() => api.get("/tags"), []);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState<string>(ACCENTS[0]?.value || "");
+  const [busy, setBusy] = useState(false);
+  const canView = can("catalog.read");
+  const canEdit = can("ingest.write");
+  if (!canView) return null;
+
+  async function create() {
+    const n = name.trim();
+    if (!n) return;
+    setBusy(true);
+    try {
+      await api.post("/tags", { name: n, color: color || null });
+      setName("");
+      tags.reload();
+    } catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(id: string, uses: number) {
+    if (uses > 0 && !confirm(t("tags.deleteConfirm", { n: uses }))) return;
+    try { await api.del(`/tags/${id}`); tags.reload(); }
+    catch (e) { toast(e instanceof ApiError ? e.message : t("settings.failed"), "err"); }
+  }
+
+  const list = tags.data || [];
+  return (
+    <div className="card col" style={{ gap: 14 }}>
+      <p className="caption" style={{ margin: 0 }}>{t("tags.manageHelp")}</p>
+      {canEdit && (
+        <div className="row wrap" style={{ gap: 10, alignItems: "center" }}>
+          <input value={name} onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") create(); }}
+            placeholder={t("tags.newPlaceholder")} style={{ flex: 1, minWidth: 160 }} />
+          <div className="swatches" style={{ gap: 6 }}>
+            {ACCENTS.map((a) => (
+              <span key={a.value} className={`swatch ${color === a.value ? "active" : ""}`}
+                style={{ background: a.value }} title={a.name} onClick={() => setColor(a.value)} />
+            ))}
+          </div>
+          <button className="btn-primary" style={{ flexShrink: 0 }} disabled={busy || !name.trim()} onClick={create}>
+            {t("tags.create")}
+          </button>
+        </div>
+      )}
+      {list.length === 0 ? (
+        <p className="muted" style={{ margin: 0 }}>{t("tags.none")}</p>
+      ) : (
+        <div className="col" style={{ gap: 8 }}>
+          {list.map((tg) => (
+            <div key={tg.id} className="list-row" style={{ alignItems: "center", gap: 10 }}>
+              <TagPill tag={tg} />
+              <span className="caption" style={{ flex: 1 }}>{t("tags.uses", { n: tg.uses })}</span>
+              {canEdit && (
+                <button className="manual-x" title={t("common.remove")} aria-label={t("common.remove")}
+                  onClick={() => remove(tg.id, tg.uses)}>
+                  <IconClose width={14} height={14} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Accordion({ title, children, defaultOpen }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <div className="accordion card" style={{ padding: 0, overflow: "hidden" }}>
+      <button className="accordion-head row" onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{ width: "100%", justifyContent: "space-between", alignItems: "center", gap: 10,
+          padding: "14px 16px", background: "transparent", border: "none", cursor: "pointer" }}>
+        <strong>{title}</strong>
+        <IconChevron width={16} height={16} style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+      </button>
+      {open && <div className="accordion-body" style={{ padding: "0 16px 16px" }}>{children}</div>}
+    </div>
+  );
+}
+
+type Tab = "display" | "settings" | "logs" | "profile";
+
 export function Settings() {
   const { t } = useT();
+  const { can, prefs } = useApp();
+  const [tab, setTab] = useState<Tab>(() => {
+    const q = new URLSearchParams(window.location.search).get("tab");
+    return (["display", "settings", "logs", "profile"].includes(q || "") ? q : "display") as Tab;
+  });
+
+  function pick(next: Tab) {
+    setTab(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.replaceState(null, "", url.toString());
+  }
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "display", label: t("settings.tabs.display") },
+    { id: "settings", label: t("settings.tabs.settings") },
+    { id: "logs", label: t("settings.tabs.logs") },
+    { id: "profile", label: t("settings.tabs.profile") },
+  ];
+
+  const showScrobble = can("ingest.write") && prefs.expert;
+  const showPlugins = can("plugins.manage");
+  const showTags = can("catalog.read");
+
   return (
     <>
-      <h1 className="large-title" style={{ marginBottom: 8 }}>{t("settings.title")}</h1>
-      <Appearance />
-      <ScrobbleSettings />
-      <Household />
-      <Plugins />
-      <AttributionLog />
-      <Account />
-      <DangerZone />
+      <h1 className="large-title" style={{ marginBottom: 12 }}>{t("settings.title")}</h1>
+      <div className="seg settings-pills" style={{ marginBottom: 18 }}>
+        {tabs.map((tb) => (
+          <button key={tb.id} className={tab === tb.id ? "active" : ""} onClick={() => pick(tb.id)}>{tb.label}</button>
+        ))}
+      </div>
+
+      {tab === "display" && <Appearance />}
+
+      {tab === "settings" && (
+        <div className="col" style={{ gap: 12 }}>
+          {showScrobble && <Accordion title={t("scrobble.title")} defaultOpen><ScrobbleSettings bare /></Accordion>}
+          {showPlugins && <Accordion title={t("settings.plugins")}><Plugins bare /></Accordion>}
+          {showTags && <Accordion title={t("settings.tags")} defaultOpen={!showScrobble}><TagManager /></Accordion>}
+          {!showScrobble && !showPlugins && !showTags && <p className="muted">{t("settings.emptyTab")}</p>}
+        </div>
+      )}
+
+      {tab === "logs" && <AttributionLog embedded />}
+
+      {tab === "profile" && (
+        <>
+          <Account />
+          <Household />
+          <DangerZone />
+        </>
+      )}
     </>
   );
 }

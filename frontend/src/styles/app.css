@@ -706,3 +706,25 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
 .cinema-hit-meta .t { font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; }
 .cinema-hit-meta .s { font-size: 0.8rem; }
 .cinema-hit-meta .d { font-size: 0.78rem; }
+
+/* ── Media tags ─────────────────────────────────────────────────────────── */
+.tag-chip { font-weight: 600; }
+.tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.tag-add { color: var(--text-secondary); border-style: dashed; }
+.tag-add:hover { color: var(--text); border-color: var(--accent); }
+.tag-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 12px;
+  box-shadow: var(--shadow-pop, 0 8px 30px rgba(0,0,0,0.18));
+}
+
+/* ── Settings pills + accordion ─────────────────────────────────────────── */
+.settings-pills { display: inline-flex; flex-wrap: wrap; }
+.accordion { padding: 0; }
+.accordion-head { transition: background .12s; }
+.accordion-head:hover { background: var(--bg-elev); }

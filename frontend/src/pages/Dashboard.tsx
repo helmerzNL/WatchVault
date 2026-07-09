@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../lib/app";
-import { useT, providerLabel } from "../lib/i18n";
+import { useT, providerLabel, mediaBadge } from "../lib/i18n";
 import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { Spark } from "../components/charts";
@@ -268,7 +268,7 @@ function MonthlyTitles({ scope }: { scope: string }) {
         data && data.length ? (
           <WatchedGrid items={data} posKey="month"
             subtitle={(t2) => t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours ?? 0)}`}
-            badge={(t2) => t2.kind === "movie" ? t("common.film") : t("common.series")} />
+            badge={(t2) => mediaBadge(t, t2)} />
         ) : <p className="muted">{t("overviews.nothingIn", { month: monthLabel(month) })}</p>}
     </Section>
   );
