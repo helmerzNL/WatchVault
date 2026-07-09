@@ -11,6 +11,7 @@ import { IconChart, IconImport, IconLayout, IconCheck, IconRefresh } from "../co
 import { AddCinemaFilmButton } from "../components/AddCinemaFilm";
 import { EpisodePicker } from "../components/EpisodePicker";
 import { resolveLayout, EditBlock } from "../components/LayoutEdit";
+import { WatchedGrid } from "../components/WatchedGrid";
 
 type RecentRange = "week" | "month" | "year";
 
@@ -265,14 +266,9 @@ function MonthlyTitles({ scope }: { scope: string }) {
       right={<MonthNav value={month} onChange={setMonth} />}>
       {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
         data && data.length ? (
-          <div className="poster-grid">
-            {data.map((t2) => (
-              <Poster key={t2.id} to={`/title/${t2.id}`} poster={t2.poster} title={t2.title} kind={t2.kind}
-                enrichId={t2.id}
-                subtitle={t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours)}`}
-                badge={t2.kind === "movie" ? t("common.film") : t("common.series")} />
-            ))}
-          </div>
+          <WatchedGrid items={data} posKey="month"
+            subtitle={(t2) => t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours ?? 0)}`}
+            badge={(t2) => t2.kind === "movie" ? t("common.film") : t("common.series")} />
         ) : <p className="muted">{t("overviews.nothingIn", { month: monthLabel(month) })}</p>}
     </Section>
   );

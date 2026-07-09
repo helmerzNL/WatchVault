@@ -286,6 +286,33 @@ label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .poster-cap .s { font-size: 0.78rem; color: var(--text-secondary); }
 
+/* "Unknown" group card in watched grids (per month / per day) — folds every
+   title without a TMDB match into one collapsible, draggable tile. */
+.watched-cell { min-width: 0; }
+.watched-cell.is-over { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius); }
+.unknown-tile { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.unknown-tile.is-dragging { opacity: 0.45; }
+.unknown-tile .unknown-ph {
+  flex-direction: column; gap: 4px;
+  background: linear-gradient(135deg, var(--accent-subtle), transparent);
+  color: var(--text-secondary);
+}
+.unknown-tile .unknown-mark { font-size: 2.1rem; font-weight: 800; line-height: 1; color: var(--text); }
+.unknown-tile .unknown-count { font-size: 0.8rem; font-weight: 700; }
+.unknown-tile .unknown-grip {
+  position: absolute; top: 8px; left: 8px;
+  display: inline-flex; color: var(--text-tertiary);
+  background: rgba(0,0,0,0.35); border-radius: var(--radius-pill); padding: 3px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.unknown-tile .unknown-chevron {
+  position: absolute; bottom: 8px; right: 8px;
+  display: inline-flex; color: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+.unknown-tile .unknown-chevron.open { transform: rotate(180deg); }
+.unknown-panel { margin-top: 12px; }
+
 /* Chips / filters */
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {

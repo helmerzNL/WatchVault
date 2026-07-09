@@ -327,7 +327,7 @@ def month_titles():
     if not month:
         return jsonify({"error": "month=YYYY-MM required"}), 400
     rows = query_all(
-        f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, "
+        f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, t.tmdb_id, "
         f"  count(*) AS events, "
         f"  count(*) FILTER (WHERE we.item_kind='episode') AS episodes, "
         f"  max(we.watched_date) AS last_watched, "
@@ -340,7 +340,8 @@ def month_titles():
     )
     return jsonify([
         {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
-         "poster": poster_url(r["poster_path"]), "events": int(r["events"]),
+         "poster": poster_url(r["poster_path"]), "matched": r["tmdb_id"] is not None,
+         "events": int(r["events"]),
          "episodes": int(r["episodes"]), "last_watched": r["last_watched"].isoformat(),
          "hours": _hours(r["seconds"])}
         for r in rows
@@ -356,7 +357,7 @@ def day_titles():
     if not date:
         return jsonify({"error": "date=YYYY-MM-DD required"}), 400
     rows = query_all(
-        f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, "
+        f"SELECT t.id, t.title, t.kind, t.year, t.poster_path, t.tmdb_id, "
         f"  count(*) AS events, "
         f"  count(*) FILTER (WHERE we.item_kind='episode') AS episodes, "
         f"  COALESCE(sum({EFF_SECONDS}),0) AS seconds "
@@ -368,7 +369,8 @@ def day_titles():
     )
     return jsonify([
         {"id": str(r["id"]), "title": r["title"], "kind": r["kind"], "year": r["year"],
-         "poster": poster_url(r["poster_path"]), "events": int(r["events"]),
+         "poster": poster_url(r["poster_path"]), "matched": r["tmdb_id"] is not None,
+         "events": int(r["events"]),
          "episodes": int(r["episodes"]),
          "hours": _hours(r["seconds"])}
         for r in rows

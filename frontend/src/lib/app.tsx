@@ -39,6 +39,10 @@ export interface Prefs {
   expert?: boolean;
   cinemaAdd?: boolean;
   dashboard_layout?: DashboardLayout;
+  // Saved position (index within the poster grid) of the collapsible "Unknown"
+  // card that groups titles without a TMDB match, per grid context. Undefined
+  // means the card is appended at the end.
+  unknown_pos?: { month?: number; day?: number };
   [k: string]: any;
 }
 

@@ -6,10 +6,11 @@ import { api } from "../lib/api";
 import { useFetch } from "../lib/useFetch";
 import { TrendArea, StackedBars } from "../components/charts";
 import { Heatmap } from "../components/Heatmap";
-import { Loading, ErrorState, Poster, Section, Seg, MonthNav, RangeSeg, type Range } from "../components/ui";
+import { Loading, ErrorState, Section, Seg, MonthNav, RangeSeg, type Range } from "../components/ui";
 import { fmtDate, fmtHours, fmtMonth, fmtDayMonth, monthKey, monthLabel } from "../lib/format";
 import { IconLayout, IconCheck, IconRefresh } from "../components/icons";
 import { resolveLayout, EditBlock } from "../components/LayoutEdit";
+import { WatchedGrid } from "../components/WatchedGrid";
 
 type Gran = "day" | "week" | "month";
 
@@ -133,14 +134,9 @@ function DailyHeatmap({ scope }: { scope: string }) {
           </div>
           {dayMedia.loading ? <Loading /> :
             dayMedia.data && dayMedia.data.length ? (
-              <div className="poster-grid">
-                {dayMedia.data.map((m) => (
-                  <Poster key={m.id} to={`/title/${m.id}`} poster={m.poster} title={m.title} kind={m.kind}
-                    enrichId={m.id}
-                    subtitle={m.kind === "movie" ? `${m.year || ""}` : `${m.episodes} ep · ${fmtHours(m.hours)}`}
-                    badge={m.kind === "movie" ? t("common.film") : t("common.series")} />
-                ))}
-              </div>
+              <WatchedGrid items={dayMedia.data} posKey="day"
+                subtitle={(m) => m.kind === "movie" ? `${m.year || ""}` : `${m.episodes} ep · ${fmtHours(m.hours ?? 0)}`}
+                badge={(m) => m.kind === "movie" ? t("common.film") : t("common.series")} />
             ) : <p className="muted">{t("overviews.nothingOnDay")}</p>}
         </div>
       )}
@@ -159,14 +155,9 @@ function MonthlyTitles({ scope }: { scope: string }) {
       right={<MonthNav value={month} onChange={setMonth} />}>
       {loading ? <Loading /> : error ? <ErrorState error={error} retry={reload} /> :
         data && data.length ? (
-          <div className="poster-grid">
-            {data.map((t2) => (
-              <Poster key={t2.id} to={`/title/${t2.id}`} poster={t2.poster} title={t2.title} kind={t2.kind}
-                enrichId={t2.id}
-                subtitle={t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours)}`}
-                badge={t2.kind === "movie" ? t("common.film") : t("common.series")} />
-            ))}
-          </div>
+          <WatchedGrid items={data} posKey="month"
+            subtitle={(t2) => t2.kind === "movie" ? `${t2.year || ""}` : `${t2.episodes} ep · ${fmtHours(t2.hours ?? 0)}`}
+            badge={(t2) => t2.kind === "movie" ? t("common.film") : t("common.series")} />
         ) : <p className="muted">{t("overviews.nothingIn", { month: monthLabel(month) })}</p>}
     </Section>
   );
