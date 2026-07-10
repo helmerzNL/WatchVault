@@ -154,7 +154,8 @@ def title_detail(title_id: str):
         return jsonify({"error": "not found"}), 404
 
     # Lazy enrichment on open: fetch metadata the first time a title is viewed.
-    if t.get("enriched_at") is None:
+    # "TV Kijken" titles have no metadata provider, so never attempt enrichment.
+    if t.get("enriched_at") is None and t["kind"] != "tv":
         try:
             from ..plugins import enrich_title, runtime
             detail_cap = "tv_details" if t["kind"] == "series" else "movie_details"
@@ -218,6 +219,19 @@ def title_detail(title_id: str):
         events = [e for e in events
                   if e["episode"] is None or (e["season"] or 0, e["episode"]) not in known]
 
+    # "TV Kijken" titles surface only a watch count and total watch time.
+    tv_watch_count = 0
+    tv_total_seconds = 0
+    if t["kind"] == "tv":
+        row = query_one(
+            f"SELECT count(*) AS n, COALESCE(sum({EFF_SECONDS}), 0) AS secs "
+            f"FROM watch_events we JOIN titles t ON t.id = we.title_id "
+            f"WHERE we.title_id = %s AND we.user_id = ANY(%s::uuid[]) "
+            f"AND we.deleted_at IS NULL",
+            (title_id, ids))
+        tv_watch_count = int(row["n"] or 0)
+        tv_total_seconds = int(row["secs"] or 0)
+
     overviews = t.get("overviews") or {}
     overview = overviews.get(lang) or t["overview"] or overviews.get("en")
     networks = [
@@ -244,6 +258,9 @@ def title_detail(title_id: str):
         "poster": poster_url(t["poster_path"]),
         "manual_title": bool(t.get("manual_title")),
         "manual_poster": bool(t.get("manual_poster")),
+        "manual_kind": bool(t.get("manual_kind")),
+        "tv_watch_count": tv_watch_count,
+        "tv_total_seconds": tv_total_seconds,
         "backdrop": poster_url(t["backdrop_path"], "w780"),
         "runtime_minutes": t["runtime_minutes"], "tmdb_id": t["tmdb_id"],
         "external_ids": t["external_ids"],

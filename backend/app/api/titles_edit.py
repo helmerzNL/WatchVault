@@ -187,6 +187,39 @@ def clear_poster_override(title_id: str):
     return jsonify({"ok": True, "poster": poster_url(restored), "manual_poster": False})
 
 
+_KINDS = ("movie", "series", "tv")
+
+
+@bp.put("/titles/<title_id>/kind")
+@require_perm("ingest.write")
+def set_kind(title_id: str):
+    """Change a title's category by hand between Film, Series and "TV Kijken".
+
+    Body ``{"kind": "movie"|"series"|"tv"}``. Setting the category by hand locks
+    it (``manual_kind = true``) so TMDB/Trakt enrichment can no longer flip it.
+    Switching away from ``series`` also clears any manual "Unknown" override, as
+    the Unknown bucket only applies to series.
+    """
+    body = request.get_json(silent=True) or {}
+    kind = (body.get("kind") or "").strip().lower()
+    if kind not in _KINDS:
+        return jsonify({"error": "kind must be one of movie, series, tv"}), 400
+
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM titles WHERE id = %s", (title_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "not found"}), 404
+        # The Unknown override only makes sense for series; drop it otherwise so a
+        # movie/tv title never lingers as a forced-Unknown series.
+        clear_unknown = kind != "series"
+        cur.execute(
+            "UPDATE titles SET kind = %s, manual_kind = true, "
+            "manual_unknown = CASE WHEN %s THEN NULL ELSE manual_unknown END, "
+            "updated_at = now() WHERE id = %s",
+            (kind, clear_unknown, title_id))
+    return jsonify({"ok": True, "kind": kind, "manual_kind": True})
+
+
 @bp.get("/media/posters/<name>")
 def serve_poster(name: str):
     safe = secure_filename(name)

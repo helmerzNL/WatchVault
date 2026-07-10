@@ -47,6 +47,15 @@ export function fmtNum(n: number): string {
   return new Intl.NumberFormat().format(Number(n) || 0);
 }
 
+// Total watch time as "HH uur MM min" (localised via i18n keys). Below an hour
+// only the minutes part is shown. `t` is the translation function.
+export function fmtDurationHM(t: (k: string, p?: Record<string, unknown>) => string, seconds: number): string {
+  const total = Math.max(0, Math.round((Number(seconds) || 0) / 60));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h > 0 ? t("common.durationHm", { h, m }) : t("common.durationM", { m });
+}
+
 export function fmtDate(iso: string): string {
   try {
     return parseLocalDate(iso).toLocaleDateString(formatLocale, { day: "numeric", month: "short", year: "numeric" });

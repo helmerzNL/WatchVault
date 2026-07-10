@@ -6,7 +6,7 @@ import { useFetch } from "../lib/useFetch";
 import { Loading, ErrorState, BackLink } from "../components/ui";
 import { TagChips } from "../components/TagChips";
 import { IconSparkles, IconCheck, IconRefresh, IconPlus, IconClose, IconPencil } from "../components/icons";
-import { fmtDate, todayLocalKey, localDateKey } from "../lib/format";
+import { fmtDate, todayLocalKey, localDateKey, fmtNum, fmtDurationHM } from "../lib/format";
 import { useState, useEffect, useRef } from "react";
 
 const today = () => todayLocalKey();
@@ -390,6 +390,15 @@ function TitleEditor({ ti, onDone }: { ti: any; onDone: () => void }) {
   const toggleUnknown = () =>
     run(() => api.put(`/titles/${ti.id}/unknown`, { unknown: !ti.unknown }),
       !ti.unknown ? t("title.movedToUnknown", { title: ti.title }) : t("title.removedFromUnknown", { title: ti.title }));
+  const setKind = (kind: string) => {
+    if (kind === ti.kind) return;
+    run(() => api.put(`/titles/${ti.id}/kind`, { kind }), t("title.edit.saved"));
+  };
+  const KINDS: { value: string; label: string }[] = [
+    { value: "movie", label: t("common.film") },
+    { value: "series", label: t("common.series") },
+    { value: "tv", label: t("title.category.tv") },
+  ];
 
   return (
     <div className="card" style={{ marginBottom: 20 }}>
@@ -428,6 +437,16 @@ function TitleEditor({ ti, onDone }: { ti: any; onDone: () => void }) {
         )}
       </div>
       <label className="caption" style={{ display: "block", marginBottom: 4 }}>{t("title.edit.categoryLabel")}</label>
+      <div className="row wrap" style={{ gap: 8, alignItems: "center", marginBottom: 16 }}>
+        <div className="seg" role="group">
+          {KINDS.map((k) => (
+            <button key={k.value} className={ti.kind === k.value ? "active" : ""}
+              disabled={busy} onClick={() => setKind(k.value)}>{k.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <label className="caption" style={{ display: "block", marginBottom: 4 }}>{t("title.edit.unknownLabel")}</label>
       <div className="row wrap" style={{ gap: 8, alignItems: "center" }}>
         <button className="btn-ghost btn-sm" disabled={busy} onClick={toggleUnknown}>
           {ti.unknown ? t("title.removeFromUnknown") : t("title.moveToUnknown")}
@@ -655,6 +674,21 @@ export function TitleDetail() {
             <div className="spacer" style={{ flex: 1 }} />
             <AddWatch onAdd={addTitleWatch} releaseDate={ti.release_date}
               label={ti.watch_dates?.length ? t("title.addWatch") : t("title.markWatched")} />
+          </div>
+        </div>
+      )}
+
+      {ti.kind === "tv" && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="row wrap" style={{ gap: 24, alignItems: "center" }}>
+            <div className="col" style={{ gap: 2 }}>
+              <strong style={{ fontSize: 22 }}>{fmtNum(ti.tv_watch_count || 0)}×</strong>
+              <span className="caption">{t("title.tv.watchCount")}</span>
+            </div>
+            <div className="col" style={{ gap: 2 }}>
+              <strong style={{ fontSize: 22 }}>{fmtDurationHM(t, ti.tv_total_seconds || 0)}</strong>
+              <span className="caption">{t("title.tv.totalTime")}</span>
+            </div>
           </div>
         </div>
       )}

@@ -124,5 +124,6 @@ export function providerLabelShort(t: TFn, key: string | undefined, name: string
 // they show as a film or a series.
 export function mediaBadge(t: TFn, item: { kind?: string; unknown?: boolean }): string {
   if (item.unknown) return t("common.unknown");
+  if (item.kind === "tv") return t("common.tv");
   return item.kind === "movie" ? t("common.film") : t("common.series");
 }

@@ -494,6 +494,7 @@ def _unfinished_query(ids):
         "FROM title_progress tp JOIN titles t ON t.id = tp.title_id "
         "WHERE tp.user_id = ANY(%s::uuid[]) AND tp.status = 'in_progress' "
         "  AND NOT wv_title_is_unknown(t.id) "
+        "  AND t.kind <> 'tv' "
         "GROUP BY t.id ORDER BY max(tp.last_activity_at) DESC NULLS LAST, t.title",
         (ids, ids),
     )

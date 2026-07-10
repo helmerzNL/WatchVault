@@ -175,6 +175,7 @@ export function Search() {
               <option value="">{t("search.all")}</option>
               <option value="movie">{t("common.movies")}</option>
               <option value="series">{t("common.series")}</option>
+              <option value="tv">{t("title.category.tv")}</option>
               <option value="unknown">{t("common.unknown")}</option>
             </select>
           </div>

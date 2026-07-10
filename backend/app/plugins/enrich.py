@@ -135,6 +135,13 @@ def enrich_title(title_id: str) -> dict:
             return {"status": "not_found"}
 
     kind = title["kind"]
+    # "TV Kijken" titles are a hand-managed bucket with no TMDB/Trakt equivalent;
+    # never enrich them. Mark as attempted so lazy-enrich stops retrying.
+    if kind == "tv":
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("UPDATE titles SET enriched_at = COALESCE(enriched_at, now()) "
+                        "WHERE id = %s", (title_id,))
+        return {"status": "skipped_tv"}
     detail_cap = "tv_details" if kind == "series" else "movie_details"
     providers = runtime.capability_providers(detail_cap)
     if not providers:
@@ -181,8 +188,9 @@ def enrich_title(title_id: str) -> dict:
         # the surviving canonical id.
         if matched_tmdb_id:
             title_id = dedupe_title_by_tmdb(cur, matched_kind, matched_tmdb_id, title_id)
-        # Correct the media type when the match came from the other endpoint.
-        if matched_kind != kind:
+        # Correct the media type when the match came from the other endpoint,
+        # unless the household pinned the category by hand (manual_kind).
+        if matched_kind != kind and not title.get("manual_kind"):
             cur.execute("UPDATE titles SET kind = %s, updated_at = now() WHERE id = %s",
                         (matched_kind, title_id))
         apply_title_details(cur, title_id, details, source)
