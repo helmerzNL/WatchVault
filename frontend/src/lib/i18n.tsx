@@ -7,6 +7,7 @@ import es from "../locales/es";
 import it from "../locales/it";
 import de from "../locales/de";
 import { FlagDE, FlagGB, FlagES, FlagFR, FlagIT, FlagNL } from "../components/flags";
+import { fmtHours } from "./format";
 import type { ComponentType, SVGProps } from "react";
 
 export type LangCode = "de" | "en" | "es" | "fr" | "it" | "nl";
@@ -126,4 +127,17 @@ export function mediaBadge(t: TFn, item: { kind?: string; unknown?: boolean }): 
   if (item.unknown) return t("common.unknown");
   if (item.kind === "tv") return t("common.tv");
   return item.kind === "movie" ? t("common.film") : t("common.series");
+}
+
+// The poster subtitle in "watched titles" grids. Movies show the year; TV Kijken
+// titles show how many times they were watched plus total time (an episode count
+// would be misleading, since a live-TV watch is not a whole recognised episode);
+// everything else shows episodes watched plus total time.
+export function watchedSubtitle(
+  _t: TFn,
+  item: { kind?: string; year?: number | null; events?: number; episodes?: number; hours?: number },
+): string {
+  if (item.kind === "movie") return `${item.year || ""}`;
+  if (item.kind === "tv") return `${item.events ?? 0}\u00d7 \u00b7 ${fmtHours(item.hours ?? 0)}`;
+  return `${item.episodes ?? 0} ep \u00b7 ${fmtHours(item.hours ?? 0)}`;
 }
