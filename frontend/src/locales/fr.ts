@@ -84,6 +84,8 @@ const fr = {
   "dashboard.nothingThisMonth": "Rien vu ce mois-ci pour le moment.",
   "dashboard.unfinished": "Pas encore terminé",
   "dashboard.unfinishedEmpty": "Tout est vu — rien en cours.",
+  "dashboard.hideUnfinished": "Masquer de « à voir »",
+  "dashboard.hidden": "« {title} » masqué jusqu'à ce que vous le regardiez à nouveau",
   "dashboard.minLeft": "{min} min restantes",
   "dashboard.pctWatched": "{pct}% vu",
   "dashboard.epsLeft": "{eps} ép. restants",

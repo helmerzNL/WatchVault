@@ -245,6 +245,7 @@ function UnfinishedTitles({ scope }: { scope: string }) {
             {data.map((u: any) => (
               <Poster key={u.id} to={`/title/${u.id}`} poster={u.poster} title={u.title} kind={u.kind}
                 enrichId={u.id} subtitle={subtitle(u)}
+                onDismiss={() => api.post(`/stats/unfinished/${u.id}/dismiss`, { profile: scope })}
                 badge={u.kind === "movie" ? t("common.film") : t("common.series")} />
             ))}
           </div>

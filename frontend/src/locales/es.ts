@@ -84,6 +84,8 @@ const es = {
   "dashboard.nothingThisMonth": "Aún no se ha visto nada este mes.",
   "dashboard.unfinished": "Aún sin terminar",
   "dashboard.unfinishedEmpty": "Todo al día — nada pendiente.",
+  "dashboard.hideUnfinished": "Ocultar de pendientes",
+  "dashboard.hidden": "«{title}» oculto hasta que lo veas de nuevo",
   "dashboard.minLeft": "{min} min restantes",
   "dashboard.pctWatched": "{pct}% visto",
   "dashboard.epsLeft": "{eps} eps. restantes",
