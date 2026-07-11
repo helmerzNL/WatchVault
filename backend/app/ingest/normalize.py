@@ -24,6 +24,24 @@ def _resolve_title(cur, kind: str, title: str, year: int | None,
     row = cur.fetchone()
     if row:
         return row["id"], False
+    # A household member may have hand-curated this title under a different
+    # category — moved it to "TV Kijken" (kind='tv') or uploaded a poster on the
+    # series row — so its normalized_key matches but its kind differs. Live-TV /
+    # generic pushes (NLziet, SkyShowtime, Videoland) always arrive as a bare
+    # 'movie' with no tmdb_id and would otherwise spawn a duplicate row without the
+    # manual poster/category. Reuse the curated row so the watch (and the
+    # now-playing card) bind to it. Guarded to identity-less movie events against
+    # only hand-curated rows, so real, separately-existing films/series (or TMDB-
+    # identified imports) never get merged; 'tv' rows are only ever created by hand.
+    if kind == "movie" and not tmdb_id:
+        cur.execute(
+            "SELECT id FROM titles WHERE normalized_key = %s AND kind <> %s "
+            "AND (manual_kind OR manual_title OR manual_poster) "
+            "ORDER BY (kind = 'tv') DESC, updated_at DESC LIMIT 1",
+            (norm, kind))
+        row = cur.fetchone()
+        if row:
+            return row["id"], False
     cur.execute(
         "INSERT INTO titles (kind, title, year, tmdb_id, external_ids, normalized_key) "
         "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
