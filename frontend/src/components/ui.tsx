@@ -6,7 +6,7 @@ import { useApp } from "../lib/app";
 import { useT } from "../lib/i18n";
 import { enqueueEnrich } from "../lib/lazyEnrich";
 import { monthKey, monthLabel } from "../lib/format";
-import { IconFilm, IconTv, IconChevron, IconPencil } from "./icons";
+import { IconFilm, IconTv, IconChevron, IconPencil, IconEyeOff } from "./icons";
 
 export function Loading({ label }: { label?: string }) {
   const { t } = useT();
@@ -145,7 +145,7 @@ export function Stat({ value, label }: { value: ReactNode; label: string }) {
 }
 
 export function Poster({
-  poster, title, subtitle, badge, kind, to, enrichId, titleId, unknown,
+  poster, title, subtitle, badge, kind, to, enrichId, titleId, unknown, onDismiss, dismissLabel,
 }: {
   poster?: string | null;
   title: string;
@@ -156,6 +156,8 @@ export function Poster({
   enrichId?: string | null;
   titleId?: string | null;
   unknown?: boolean;
+  onDismiss?: () => Promise<void> | void;
+  dismissLabel?: string;
 }) {
   const ref = useRef<HTMLAnchorElement | HTMLDivElement | null>(null);
   const { t } = useT();
@@ -170,7 +172,10 @@ export function Poster({
   const canDelete = !!(prefs.expert && delId);
   // Renaming, poster upload and moving to/from Unknown all need catalogue write.
   const canManage = !!(can("ingest.write") && delId);
-  const canAct = canManage || canDelete;
+  // Hiding from the "still to watch" block is a personal action, available to
+  // any viewer wherever the caller wires up onDismiss.
+  const canDismiss = !!onDismiss;
+  const canAct = canManage || canDelete || canDismiss;
 
   const [confirm, setConfirm] = useState(false);
   const [sheet, setSheet] = useState(false);
@@ -263,6 +268,22 @@ export function Poster({
 
   const editTitle = () => { setSheet(false); if (delId) navigate(`/title/${delId}?edit=1`); };
 
+  const doDismiss = async () => {
+    if (!onDismiss) return;
+    setBusy(true);
+    try {
+      await onDismiss();
+      setSheet(false);
+      // Hidden from this block until a new watch session brings it back.
+      setDeleted(true);
+      toast(t("dashboard.hidden", { title }), "ok");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t("settings.failed"), "err");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (deleted) return null;
 
   const pressHandlers = canAct ? {
@@ -304,9 +325,12 @@ export function Poster({
           unknown={!!unknown}
           canManage={canManage}
           canDelete={canDelete}
+          canDismiss={canDismiss}
+          dismissLabel={dismissLabel ?? t("dashboard.hideUnfinished")}
           busy={busy}
           onEdit={editTitle}
           onToggleUnknown={toggleUnknown}
+          onDismiss={doDismiss}
           onDelete={() => { setSheet(false); setConfirm(true); }}
           onClose={() => { if (!busy) setSheet(false); }}
         />
@@ -326,12 +350,13 @@ export function Poster({
 // Long-press action sheet for a media tile: edit title/poster, move the title
 // into or out of the derived "Unknown" category, or (Expert mode) delete it.
 function TitleActionSheet({
-  title, unknown, canManage, canDelete, busy,
-  onEdit, onToggleUnknown, onDelete, onClose,
+  title, unknown, canManage, canDelete, canDismiss, dismissLabel, busy,
+  onEdit, onToggleUnknown, onDismiss, onDelete, onClose,
 }: {
   title: string; unknown: boolean; canManage: boolean; canDelete: boolean;
+  canDismiss: boolean; dismissLabel: string;
   busy: boolean; onEdit: () => void; onToggleUnknown: () => void;
-  onDelete: () => void; onClose: () => void;
+  onDismiss: () => void; onDelete: () => void; onClose: () => void;
 }) {
   const { t } = useT();
   useEffect(() => {
@@ -357,6 +382,12 @@ function TitleActionSheet({
               disabled={busy} onClick={onToggleUnknown}>
               <IconTv width={16} height={16} />
               {unknown ? t("title.removeFromUnknown") : t("title.moveToUnknown")}
+            </button>
+          )}
+          {canDismiss && (
+            <button className="btn-ghost" style={{ justifyContent: "flex-start" }}
+              disabled={busy} onClick={onDismiss}>
+              <IconEyeOff width={16} height={16} /> {dismissLabel}
             </button>
           )}
           {canDelete && (

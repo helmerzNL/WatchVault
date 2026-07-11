@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from ..db import query_all, query_one
+from ..db import query_all, query_one, connection
 from ..auth.sessions import require_perm
 from ._common import EFF_SECONDS, poster_url, scope_user_ids
 
@@ -474,6 +474,29 @@ def unfinished_titles():
     return jsonify([_unfinished_row(r) for r in _unfinished_query(ids)])
 
 
+@bp.post("/unfinished/<title_id>/dismiss")
+@require_perm("catalog.read")
+def dismiss_unfinished(title_id: str):
+    """Hide a started-but-unfinished title from the "still to watch" tracker.
+
+    Stamps ``dismissed_at`` on the scoped profile(s)' in-progress rows so the
+    title drops out of the block, letting the member start a fresh watch session.
+    A later watch (which pushes ``last_activity_at`` past the stamp) brings the
+    title back if it is still unfinished."""
+    profile = (request.get_json(silent=True) or {}).get("profile")
+    ids = [str(i) for i in scope_user_ids(profile)]
+    if not ids:
+        return jsonify({"error": "no profile in scope"}), 400
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE title_progress SET dismissed_at = now(), updated_at = now() "
+            "WHERE title_id = %s AND user_id = ANY(%s::uuid[]) "
+            "  AND status = 'in_progress'",
+            (title_id, ids))
+        dismissed = cur.rowcount
+    return jsonify({"ok": True, "dismissed": dismissed})
+
+
 def _unfinished_query(ids):
     """Raw ``title_progress`` rows for the scoped profile(s), enriched with the
     runtime metadata needed to work out what's still left to watch. Shared by the
@@ -495,7 +518,13 @@ def _unfinished_query(ids):
         "WHERE tp.user_id = ANY(%s::uuid[]) AND tp.status = 'in_progress' "
         "  AND NOT wv_title_is_unknown(t.id) "
         "  AND t.kind <> 'tv' "
-        "GROUP BY t.id ORDER BY max(tp.last_activity_at) DESC NULLS LAST, t.title",
+        "GROUP BY t.id "
+        # Hide a title only while every scoped profile's row is dismissed with no
+        # newer activity; any not-dismissed or freshly-active row brings it back.
+        "HAVING bool_or(tp.dismissed_at IS NULL "
+        "               OR (tp.last_activity_at IS NOT NULL "
+        "                   AND tp.last_activity_at > tp.dismissed_at)) "
+        "ORDER BY max(tp.last_activity_at) DESC NULLS LAST, t.title",
         (ids, ids),
     )
 

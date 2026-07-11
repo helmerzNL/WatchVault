@@ -84,6 +84,8 @@ const en = {
   "dashboard.nothingThisMonth": "Nothing watched yet this month.",
   "dashboard.unfinished": "Still watching",
   "dashboard.unfinishedEmpty": "All caught up — nothing unfinished.",
+  "dashboard.hideUnfinished": "Hide from still to watch",
+  "dashboard.hidden": "“{title}” hidden until you watch it again",
   "dashboard.minLeft": "{min} min left",
   "dashboard.pctWatched": "{pct}% watched",
   "dashboard.epsLeft": "{eps} eps left",

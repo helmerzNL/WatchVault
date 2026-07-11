@@ -84,6 +84,8 @@ const nl = {
   "dashboard.nothingThisMonth": "Deze maand nog niets bekeken.",
   "dashboard.unfinished": "Nog niet afgekeken",
   "dashboard.unfinishedEmpty": "Alles afgekeken — niets openstaan.",
+  "dashboard.hideUnfinished": "Verbergen uit nog niet afgekeken",
+  "dashboard.hidden": "“{title}” verborgen tot je het opnieuw kijkt",
   "dashboard.minLeft": "nog {min} min",
   "dashboard.pctWatched": "{pct}% gezien",
   "dashboard.epsLeft": "nog {eps} afl.",
