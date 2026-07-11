@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 
 from flask import Blueprint, jsonify, request
 
@@ -18,6 +19,8 @@ from ..auth.sessions import current_user, require_perm
 from ..catalog import get_or_create_movie_by_tmdb
 from ..plugins import enrich_title, runtime
 from ._common import household_user_ids, poster_url, scope_user_ids
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("ingest", __name__, url_prefix="/api")
 
@@ -542,12 +545,14 @@ def tmdb_search():
         try:
             plugin = runtime.get_plugin(pid)
         except Exception:  # noqa: BLE001
+            logger.exception("search: could not load plugin %s", pid)
             continue
         if not getattr(plugin, "configured", True):
             continue
         try:
             raw = plugin.search(q, year_i, "movie") or []
         except Exception:  # noqa: BLE001 — a provider error must not break search
+            logger.exception("search: provider %s failed for %r", pid, q)
             continue
         for r in raw:
             mapped = _map_movie_search_result(r)
@@ -609,7 +614,7 @@ def add_film():
         try:
             enrich_title(title_id)
         except Exception:  # noqa: BLE001 — enrichment is best-effort
-            pass
+            logger.exception("enrich failed for title %s (best-effort)", title_id)
 
     result = add_manual_movie(target, title_id, date)
     if result.get("status") not in ("ok",):

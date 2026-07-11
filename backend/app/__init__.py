@@ -5,7 +5,7 @@ import datetime as dt
 import logging
 import uuid
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask.json.provider import DefaultJSONProvider
 from werkzeug.exceptions import HTTPException
 
@@ -55,11 +55,17 @@ def create_app() -> Flask:
 
     @app.errorhandler(HTTPException)
     def handle_http(exc: HTTPException):
+        # 4xx are expected client errors; 5xx signal a real server fault that would
+        # otherwise be returned with no trace — log those with request context.
+        if exc.code and exc.code >= 500:
+            app.logger.exception("HTTP %s on %s %s", exc.code, request.method, request.path)
         return jsonify({"error": exc.name, "message": exc.description}), exc.code
 
     @app.errorhandler(Exception)
     def handle_error(exc: Exception):  # noqa: BLE001
-        app.logger.exception("Unhandled error")
+        # Include the request method + path so the logged traceback points at the
+        # endpoint that failed (e.g. a UniqueViolation from a title edit).
+        app.logger.exception("Unhandled error on %s %s", request.method, request.path)
         msg = str(exc) if cfg.APP_ENV != "production" else "internal server error"
         return jsonify({"error": "internal_error", "message": msg}), 500
 

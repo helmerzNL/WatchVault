@@ -190,6 +190,52 @@ def clear_poster_override(title_id: str):
 _KINDS = ("movie", "series", "tv")
 
 
+def apply_kind_change(cur, title_id: str, kind: str) -> dict | None:
+    """Set a title's category by hand, merging into an existing same-name row of
+    the target category when one exists.
+
+    Titles are unique on ``(kind, normalized_key)``, so a bare
+    ``UPDATE titles SET kind=…`` collides (UniqueViolation → 500) when another row
+    already holds ``(kind, normalized_key)`` — the common case being a hand-curated
+    "TV Kijken" (``tv``) entry alongside the movie row of the same programme. When
+    that target row exists it stays canonical (it is already the desired kind, and
+    ``tv`` rows are only ever created by hand, so its curation must win); the
+    current row is folded into it via ``wv_merge_titles`` (watch events, episodes,
+    live sessions and progress move over, empty scalars fill, the dup is deleted).
+
+    Returns ``{"title_id", "merged"}`` — ``title_id`` is the surviving row (the
+    canonical one on a merge) so the caller can redirect the UI — or ``None`` when
+    the title does not exist. Runs entirely on the caller-owned cursor/transaction.
+    """
+    cur.execute("SELECT normalized_key FROM titles WHERE id = %s", (title_id,))
+    row = cur.fetchone()
+    if not row:
+        return None
+    # The Unknown override only makes sense for series; drop it otherwise so a
+    # movie/tv title never lingers as a forced-Unknown series.
+    clear_unknown = kind != "series"
+    cur.execute(
+        "SELECT id FROM titles WHERE kind = %s AND normalized_key = %s AND id <> %s "
+        "LIMIT 1",
+        (kind, row["normalized_key"], title_id))
+    collision = cur.fetchone()
+    if collision:
+        canonical = str(collision["id"])
+        cur.execute("SELECT wv_merge_titles(%s::uuid, %s::uuid)", (canonical, title_id))
+        cur.execute(
+            "UPDATE titles SET kind = %s, manual_kind = true, "
+            "manual_unknown = CASE WHEN %s THEN NULL ELSE manual_unknown END, "
+            "updated_at = now() WHERE id = %s",
+            (kind, clear_unknown, canonical))
+        return {"title_id": canonical, "merged": True}
+    cur.execute(
+        "UPDATE titles SET kind = %s, manual_kind = true, "
+        "manual_unknown = CASE WHEN %s THEN NULL ELSE manual_unknown END, "
+        "updated_at = now() WHERE id = %s",
+        (kind, clear_unknown, title_id))
+    return {"title_id": title_id, "merged": False}
+
+
 @bp.put("/titles/<title_id>/kind")
 @require_perm("ingest.write")
 def set_kind(title_id: str):
@@ -198,7 +244,9 @@ def set_kind(title_id: str):
     Body ``{"kind": "movie"|"series"|"tv"}``. Setting the category by hand locks
     it (``manual_kind = true``) so TMDB/Trakt enrichment can no longer flip it.
     Switching away from ``series`` also clears any manual "Unknown" override, as
-    the Unknown bucket only applies to series.
+    the Unknown bucket only applies to series. When a row of the target category
+    with the same name already exists, this title is merged into it (see
+    ``apply_kind_change``) and the response's ``title_id`` is the survivor.
     """
     body = request.get_json(silent=True) or {}
     kind = (body.get("kind") or "").strip().lower()
@@ -206,18 +254,10 @@ def set_kind(title_id: str):
         return jsonify({"error": "kind must be one of movie, series, tv"}), 400
 
     with connection() as conn, conn.cursor() as cur:
-        cur.execute("SELECT 1 FROM titles WHERE id = %s", (title_id,))
-        if not cur.fetchone():
-            return jsonify({"error": "not found"}), 404
-        # The Unknown override only makes sense for series; drop it otherwise so a
-        # movie/tv title never lingers as a forced-Unknown series.
-        clear_unknown = kind != "series"
-        cur.execute(
-            "UPDATE titles SET kind = %s, manual_kind = true, "
-            "manual_unknown = CASE WHEN %s THEN NULL ELSE manual_unknown END, "
-            "updated_at = now() WHERE id = %s",
-            (kind, clear_unknown, title_id))
-    return jsonify({"ok": True, "kind": kind, "manual_kind": True})
+        result = apply_kind_change(cur, title_id, kind)
+    if result is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True, "kind": kind, "manual_kind": True, **result})
 
 
 @bp.get("/media/posters/<name>")

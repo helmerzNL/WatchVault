@@ -2,6 +2,8 @@
 platform and year, scoped to a profile or the whole household."""
 from __future__ import annotations
 
+import logging
+
 from flask import Blueprint, jsonify, request
 
 from ..db import query_all, query_one
@@ -10,6 +12,8 @@ from ._common import EFF_SECONDS, poster_url, scope_user_ids
 from ..ingest import trakt_configured
 
 bp = Blueprint("search", __name__, url_prefix="/api/search")
+
+logger = logging.getLogger(__name__)
 
 
 @bp.get("")
@@ -163,7 +167,7 @@ def title_detail(title_id: str):
                 enrich_title(title_id)
                 t = query_one("SELECT * FROM titles WHERE id = %s", (title_id,)) or t
         except Exception:  # noqa: BLE001 — enrichment is best-effort
-            pass
+            logger.exception("lazy enrich failed for title %s (best-effort)", title_id)
 
     genres = query_all(
         "SELECT g.name FROM title_genres tg JOIN genres g ON g.id = tg.genre_id "
@@ -242,6 +246,7 @@ def title_detail(title_id: str):
     try:
         trakt_ok = trakt_configured(str(current_user()["household_id"]))
     except Exception:  # noqa: BLE001 — never break title detail over this hint
+        logger.exception("trakt_configured check failed (best-effort)")
         trakt_ok = False
     override = None
     if t.get("platform_override_provider_id"):
@@ -347,4 +352,4 @@ def _queue_episode_backfill(title_id: str) -> None:
                 "  AND payload->>'title_id' = %s AND status = 'pending')",
                 (_json.dumps({"title_id": str(title_id)}), str(title_id)))
     except Exception:  # noqa: BLE001 — backfill is best-effort
-        pass
+        logger.exception("episode backfill enqueue failed for title %s (best-effort)", title_id)

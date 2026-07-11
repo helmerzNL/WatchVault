@@ -1,4 +1,4 @@
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useApp } from "../lib/app";
 import { useT, useGenre, providerLabel, mediaBadge } from "../lib/i18n";
 import { api, ApiError } from "../lib/api";
@@ -356,6 +356,7 @@ function Seasons({ seasons, ctl, live }: { seasons: any[]; ctl: Ctl; live?: Map<
 function TitleEditor({ ti, onDone }: { ti: any; onDone: () => void }) {
   const { toast } = useApp();
   const { t } = useT();
+  const navigate = useNavigate();
   const [title, setTitle] = useState<string>(ti.title || "");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -390,9 +391,23 @@ function TitleEditor({ ti, onDone }: { ti: any; onDone: () => void }) {
   const toggleUnknown = () =>
     run(() => api.put(`/titles/${ti.id}/unknown`, { unknown: !ti.unknown }),
       !ti.unknown ? t("title.movedToUnknown", { title: ti.title }) : t("title.removedFromUnknown", { title: ti.title }));
-  const setKind = (kind: string) => {
+  const setKind = async (kind: string) => {
     if (kind === ti.kind) return;
-    run(() => api.put(`/titles/${ti.id}/kind`, { kind }), t("title.edit.saved"));
+    setBusy(true);
+    try {
+      // Changing the category can merge this title into an existing same-name row
+      // of that category (e.g. a hand-curated "TV Kijken" entry); the response's
+      // title_id is then the surviving row, so navigate there instead of the
+      // now-deleted one.
+      const res = await api.put(`/titles/${ti.id}/kind`, { kind });
+      toast(t("title.edit.saved"), "ok");
+      if (res?.title_id && res.title_id !== ti.id) navigate(`/titles/${res.title_id}`);
+      else onDone();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t("settings.failed"), "err");
+    } finally {
+      setBusy(false);
+    }
   };
   const KINDS: { value: string; label: string }[] = [
     { value: "movie", label: t("common.film") },
