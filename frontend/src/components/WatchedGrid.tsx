@@ -37,8 +37,11 @@ export function WatchedGrid({ items, posKey, subtitle, badge }: {
   const [dragging, setDragging] = useState(false);
   const [overId, setOverId] = useState<string | null>(null);
 
-  const matched = items.filter((i) => i.matched !== false);
-  const unknown = items.filter((i) => i.matched === false);
+  // "TV Kijken" titles have no TMDB match by design, but they are recognised (the
+  // household categorised them), so they render as their own tile with the
+  // "N× · Xh" subtitle rather than being folded into the collapsed Unknown card.
+  const matched = items.filter((i) => i.matched !== false || i.kind === "tv");
+  const unknown = items.filter((i) => i.matched === false && i.kind !== "tv");
 
   // No unrecognized titles → a plain poster grid, nothing special to fold.
   if (unknown.length === 0) {
