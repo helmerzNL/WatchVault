@@ -12,8 +12,10 @@ sys.path.insert(0, str(ROOT / "backend"))
 from app.ingest.scrobble import (  # noqa: E402
     parse_plex_payload, parse_generic_payload, should_commit, should_reset_commit,
     state_for_event, _tmdb_from_guids, _progress, _resolve_provider_id,
-    _resolve_profile_id, ScrobbleEvent,
+    _resolve_profile_id, ScrobbleEvent, is_durationless, should_commit_live_end,
+    _watch_seconds, LIVE_MIN_WATCH_SECONDS,
 )
+import datetime as _dt
 
 
 # ── Plex parser ─────────────────────────────────────────────────────────────
@@ -241,6 +243,34 @@ def test_should_commit_update_tick():
     assert should_commit(ScrobbleEvent(event="update", progress_percent=95, **base), 90) is True
 
 
+def test_is_durationless():
+    base = dict(source="nlziet", raw_title="NPO 1", dedup_key="k")
+    assert is_durationless(ScrobbleEvent(event="play", duration_seconds=None, **base)) is True
+    assert is_durationless(ScrobbleEvent(event="play", duration_seconds=0, **base)) is True
+    assert is_durationless(ScrobbleEvent(event="play", duration_seconds=1800, **base)) is False
+
+
+def test_should_commit_live_end():
+    # Durationless (live TV) commits once watched long enough — the 90% threshold
+    # does not apply to it.
+    assert should_commit_live_end(None, LIVE_MIN_WATCH_SECONDS) is True
+    assert should_commit_live_end(0, LIVE_MIN_WATCH_SECONDS + 1) is True
+    # Too short → treated as channel surfing, not recorded.
+    assert should_commit_live_end(None, LIVE_MIN_WATCH_SECONDS - 1) is False
+    # A known duration never takes this path, regardless of watch time.
+    assert should_commit_live_end(1800, 100_000) is False
+
+
+def test_watch_seconds_prefers_position_then_elapsed():
+    now = _dt.datetime(2026, 1, 1, 12, 30, tzinfo=_dt.timezone.utc)
+    started = _dt.datetime(2026, 1, 1, 12, 0, tzinfo=_dt.timezone.utc)
+    # Reported stream position wins when present.
+    assert _watch_seconds(started, 900, now) == 900
+    # Else fall back to wall-clock time since the session started (30 min).
+    assert _watch_seconds(started, None, now) == 1800
+    assert _watch_seconds(None, None, now) == 0
+
+
 def test_update_is_not_a_reset_event():
     # `update` must NOT reset committed_at (only fresh play/resume start a new
     # session). This pins the reset-set contract used by handle_scrobble.
@@ -349,7 +379,8 @@ class SmartCursor:
             self._last = {"id": "sess-1", "committed_at": None,
                           "kind": params[7], "season": params[8],
                           "episode": params[9], "episode_name": params[10],
-                          "manual_episode": False}
+                          "manual_episode": False, "started_at": None,
+                          "duration_seconds": params[15]}
         elif "FROM titles WHERE tmdb_id" in s:
             self._last = None
         elif "FROM titles WHERE kind" in s:
@@ -557,6 +588,45 @@ def test_handle_scrobble_commit_keeps_playing_state(monkeypatch):
     assert sum("SET committed_at = now()" in _norm(s) for s in cur.executed) == 1
 
 
+def test_handle_scrobble_durationless_commits_on_stop(monkeypatch):
+    # Live TV (no duration) never crosses the 90% threshold, so it is recorded on
+    # the `stop` event once watched long enough, using the watch time as duration.
+    cur = SmartCursor()
+    monkeypatch.setattr(_scrobble, "connection", _fake_conn(cur))
+    seen = {}
+    def _capture(user_id, provider_id, conn_id, events, cur=None):
+        seen["duration"] = events[0].duration_seconds
+        return {"inserted": 1, "duplicates": 0, "titles_created": 0,
+                "titles_touched": 1, "series_title_ids": []}
+    monkeypatch.setattr(_scrobble, "ingest_events", _capture)
+
+    evt = parse_generic_payload({"title": "NPO 1", "event": "stop",
+                                 "position_seconds": 3600})   # no duration_seconds
+    assert evt.duration_seconds is None
+    result = _scrobble.handle_scrobble("hh-1", evt, "token-user")
+
+    assert result["committed"] is True
+    assert result["state"] == "stopped"
+    assert seen["duration"] == 3600     # watch time recorded as the event duration
+    assert sum("SET committed_at = now()" in _norm(s) for s in cur.executed) == 1
+
+
+def test_handle_scrobble_durationless_stop_too_short_no_commit(monkeypatch):
+    # A brief tune-in below the minimum is treated as channel surfing, not recorded.
+    cur = SmartCursor()
+    monkeypatch.setattr(_scrobble, "connection", _fake_conn(cur))
+    monkeypatch.setattr(_scrobble, "ingest_events",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            AssertionError("must not commit a too-short live session")))
+
+    evt = parse_generic_payload({"title": "NPO 1", "event": "stop",
+                                 "position_seconds": 30})   # < LIVE_MIN_WATCH_SECONDS
+    result = _scrobble.handle_scrobble("hh-1", evt, "token-user")
+
+    assert result["committed"] is False
+    assert not any("SET committed_at = now()" in _norm(s) for s in cur.executed)
+
+
 class CommittedSessionCursor(SmartCursor):
     """Like SmartCursor but the session UPSERT reports an already-committed row,
     so handle_scrobble takes the already_committed (no re-ingest) path."""
@@ -639,6 +709,7 @@ def test_expire_stale_already_committed_marks_stopped_without_reingest(monkeypat
         "episode_name": None, "raw_title": "Dune", "kind": "movie",
         "year": 2024, "season": None, "episode": None,
         "duration_seconds": 100, "tmdb_id": None, "source": "homeassistant",
+        "started_at": None, "position_seconds": None,
     }
 
     class ExpireCursor:

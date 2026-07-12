@@ -32,6 +32,9 @@ _STATE_BY_EVENT = {
     "pause": "paused", "stop": "stopped",
 }
 DEFAULT_THRESHOLD = 90
+# Minimum watch time before a durationless (live-TV) session is recorded as a
+# watch, so brief channel-surfing is not logged. Tunable.
+LIVE_MIN_WATCH_SECONDS = 120
 
 # Home Assistant reports the playing app's bundle/app id (e.g. NLZiet =
 # 'nl.nlziet.nlziet'). Map those to our provider keys so a scrobble is
@@ -255,12 +258,37 @@ def state_for_event(event: str) -> str:
 
 def should_commit(evt: ScrobbleEvent, threshold: float) -> bool:
     """A play becomes a permanent watch_event when Plex fires `scrobble`, or when
-    progress reaches the commit threshold (>=90% by default)."""
+    progress reaches the commit threshold (>=90% by default). Only meaningful when
+    a playback length is known; a durationless (live-TV) stream commits by watch
+    time instead — see should_commit_live_end."""
     if evt.event == "scrobble":
         return True
     if evt.progress_percent is not None and evt.progress_percent >= threshold:
         return True
     return False
+
+
+def is_durationless(evt: ScrobbleEvent) -> bool:
+    """True when no playback length is known, so a completion percentage can't be
+    computed. Live TV (NLziet and friends) has no fixed end, so it lands here."""
+    return not evt.duration_seconds
+
+
+def should_commit_live_end(duration_seconds, watched_seconds: int,
+                           min_seconds: int = LIVE_MIN_WATCH_SECONDS) -> bool:
+    """A durationless (live-TV) session has no completion percentage, so the 90%
+    threshold does not apply: it commits at the *end* of the session (a stop event
+    or session expiry) once it has been watched long enough to not be channel
+    surfing. Never fires when a duration is known — that path uses should_commit."""
+    return not duration_seconds and watched_seconds >= min_seconds
+
+
+def _watch_seconds(started_at, position_seconds, now) -> int:
+    """How long a live session was watched: the reported stream position if the
+    player sends one, else the wall-clock time since the session started."""
+    if position_seconds:
+        return int(position_seconds)
+    return int((now - started_at).total_seconds()) if started_at else 0
 
 
 def should_reset_commit(evt: ScrobbleEvent, threshold: float) -> bool:
@@ -338,6 +366,31 @@ def _maybe_enqueue_enrich(cur, title_id: str) -> None:
     )
 
 
+def _commit_session_watch(cur, session_id, user_id, provider_id, evt: ScrobbleEvent,
+                          eff_season, eff_episode, eff_episode_name, eff_kind,
+                          duration_seconds) -> None:
+    """Write a finished watch_event for a live session and stamp committed_at, on
+    the caller-owned cursor/transaction. ``duration_seconds`` is the play's own
+    length for finite media, or the measured watch time for a durationless
+    (live-TV) session. Opening a second pooled connection here would deadlock on an
+    uncommitted first-seen-title INSERT this transaction may hold."""
+    ne = NormalizedEvent(
+        raw_title=eff_episode_name or evt.raw_title,
+        clean_title=evt.raw_title,
+        watched_at=now_utc(),
+        kind="series" if eff_kind == "series" else "movie",
+        year=evt.year, season=eff_season, episode=eff_episode,
+        episode_name=eff_episode_name,
+        duration_seconds=duration_seconds,
+        progress_percent=evt.progress_percent,
+        completed=True, tmdb_id=evt.tmdb_id,
+        raw={"source": evt.source, "scrobble": True, "platform": evt.platform_key},
+    )
+    ingest_events(str(user_id), str(provider_id), None, [ne], cur=cur)
+    cur.execute("UPDATE scrobble_sessions SET committed_at = now() WHERE id = %s",
+                (session_id,))
+
+
 def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
                     threshold: float = DEFAULT_THRESHOLD) -> dict:
     """UPSERT the now-playing session and commit it to watch_events when finished.
@@ -390,7 +443,8 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
             "  episode_name = CASE WHEN scrobble_sessions.manual_episode THEN scrobble_sessions.episode_name ELSE EXCLUDED.episode_name END, "
             "  updated_at = now(), "
             "  committed_at = CASE WHEN %s THEN NULL ELSE scrobble_sessions.committed_at END "
-            "RETURNING id, committed_at, season, episode, episode_name, kind, manual_episode",
+            "RETURNING id, committed_at, season, episode, episode_name, kind, "
+            "  manual_episode, started_at, duration_seconds",
             (household_id, user_id, provider_id, evt.source, evt.account_label,
              evt.platform_key, evt.raw_title, evt.kind, evt.season, evt.episode,
              evt.episode_name, evt.year, evt.tmdb_id,
@@ -407,6 +461,10 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
         eff_episode_name = row["episode_name"]
         eff_kind = row["kind"]
         manual = bool(row["manual_episode"])
+        # Persisted across ticks: used to decide a durationless (live-TV) commit and
+        # to measure how long the session was watched.
+        sess_started_at = row["started_at"]
+        sess_duration = row["duration_seconds"]
 
         # Resolve (or create) the central title so the now-playing card can show
         # the series/movie poster, and kick off enrichment for fresh content so
@@ -426,35 +484,26 @@ def handle_scrobble(household_id: str, evt: ScrobbleEvent, token_user_id: str,
                             (title_id, session_id))
                 _maybe_enqueue_enrich(cur, title_id)
 
+        # How long this session was watched (for a durationless live-TV commit).
+        watched_seconds = _watch_seconds(sess_started_at, evt.position_seconds, now_utc())
         if commit and not already_committed and user_id and provider_id:
-            ne = NormalizedEvent(
-                raw_title=eff_episode_name or evt.raw_title,
-                clean_title=evt.raw_title,
-                watched_at=now_utc(),
-                kind="series" if eff_kind == "series" else "movie",
-                year=evt.year, season=eff_season, episode=eff_episode,
-                episode_name=eff_episode_name,
-                duration_seconds=evt.duration_seconds,
-                progress_percent=evt.progress_percent,
-                completed=True, tmdb_id=evt.tmdb_id,
-                raw={"source": evt.source, "scrobble": True,
-                     "platform": evt.platform_key},
-            )
-            # Commit on the SAME open cursor/transaction. Opening a second pooled
-            # connection here would block forever: this transaction may hold an
-            # uncommitted INSERT on the titles unique index (a first-seen title),
-            # and a second connection re-resolving that title would wait on the
-            # lock while this one waits in Python for it to return — a self-deadlock
-            # invisible to Postgres's detector.
-            ingest_events(str(user_id), str(provider_id), None, [ne], cur=cur)
-            # Mark committed but keep the live state: an `update`/`play`/`scrobble`
-            # tick maps to 'playing', so the now-playing card stays visible while
-            # playback continues past the threshold. The card only disappears when a
-            # real `stop` event flips state to 'stopped'. The already_committed guard
-            # ensures later ticks see committed_at and do NOT re-ingest.
-            cur.execute(
-                "UPDATE scrobble_sessions SET committed_at = now() WHERE id = %s",
-                (session_id,))
+            # Finite media crossing the completion threshold. Mark committed but keep
+            # the live state: an `update`/`play`/`scrobble` tick maps to 'playing', so
+            # the now-playing card stays visible while playback continues past the
+            # threshold; it only disappears on a real `stop`. The already_committed
+            # guard stops later ticks from re-ingesting.
+            _commit_session_watch(cur, session_id, user_id, provider_id, evt,
+                                  eff_season, eff_episode, eff_episode_name, eff_kind,
+                                  evt.duration_seconds)
+            committed = True
+        elif (state == "stopped" and not already_committed and user_id and provider_id
+              and should_commit_live_end(sess_duration, watched_seconds)):
+            # Durationless live TV has no completion percentage, so it is recorded at
+            # end of session (this stop event) once watched long enough. The measured
+            # watch time becomes the event's duration so TV Kijken time is meaningful.
+            _commit_session_watch(cur, session_id, user_id, provider_id, evt,
+                                  eff_season, eff_episode, eff_episode_name, eff_kind,
+                                  watched_seconds)
             committed = True
 
         # Keep the precomputed completion status in sync with live playback: a
@@ -496,8 +545,14 @@ def expire_stale_sessions(idle_minutes: int = 30,
         for s in stale:
             expired += 1
             progress = float(s["progress_percent"] or 0)
-            if (s["committed_at"] is None and progress >= threshold
-                    and s["user_id"] and s["provider_id"]):
+            watched = _watch_seconds(s["started_at"], s["position_seconds"], now_utc())
+            # Finite media that crossed the threshold but never got a stop/scrobble
+            # webhook, OR a durationless (live-TV) session that just stopped ticking
+            # without a stop event — commit both here.
+            finite_commit = progress >= threshold
+            live_commit = should_commit_live_end(s["duration_seconds"], watched)
+            if (s["committed_at"] is None and s["user_id"] and s["provider_id"]
+                    and (finite_commit or live_commit)):
                 ne = NormalizedEvent(
                     raw_title=s["episode_name"] or s["raw_title"],
                     clean_title=s["raw_title"],
@@ -505,8 +560,9 @@ def expire_stale_sessions(idle_minutes: int = 30,
                     kind="series" if s["kind"] == "series" else "movie",
                     year=s["year"], season=s["season"], episode=s["episode"],
                     episode_name=s["episode_name"],
-                    duration_seconds=s["duration_seconds"],
-                    progress_percent=progress, completed=True,
+                    duration_seconds=s["duration_seconds"] if finite_commit else watched,
+                    progress_percent=progress if finite_commit else None,
+                    completed=True,
                     tmdb_id=s["tmdb_id"],
                     raw={"source": s["source"], "scrobble": True,
                          "platform": s["platform_key"]},
