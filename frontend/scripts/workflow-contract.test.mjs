@@ -64,6 +64,8 @@ test("selection, E2E, baseline generation, and aggregate gate are explicit", () 
   assert.match(ciSource, /workflow_dispatch/);
   assert.match(ciSource, /16/);
   assert.match(ciSource, /e2e\/__screenshots__/);
+  assert.match(ciSource, /SOURCE_COMMIT:\s*\$\{\{\s*github\.sha\s*\}\}/);
+  assert.match(ciSource, /baseline-manifest\.mjs/);
   assert.match(ciSource, /sha256|SHA-256/i);
   assert.match(ciSource, /name:\s*delivery \/ gate/);
   assert.match(ciSource, /if:\s*\$\{\{\s*always\(\)\s*\}\}/);

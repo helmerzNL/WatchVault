@@ -153,18 +153,18 @@ jobs:
         run: npx playwright install chromium
       - name: Generate exactly 16 reference images
         working-directory: frontend
-        run: |
-          npx playwright test --update-snapshots
-          test "$(find e2e/__screenshots__ -type f -name '*.png' | wc -l)" -eq 16
-          find e2e/__screenshots__ -type f -name '*.png' -print0 \
-            | sort -z \
-            | xargs -0 sha256sum > playwright-baseline-manifest.sha256
+        run: npx playwright test --update-snapshots
+      - name: Create SHA-256 provenance manifest
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          PLAYWRIGHT_CONTAINER: mcr.microsoft.com/playwright:v1.61.1-noble
+        run: node scripts/ci/baseline-manifest.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: playwright-baselines-${{ github.sha }}
           path: |
             frontend/e2e/__screenshots__/**/*.png
-            frontend/playwright-baseline-manifest.sha256
+            frontend/playwright-baseline-manifest.json
           if-no-files-found: error
           retention-days: 14
 

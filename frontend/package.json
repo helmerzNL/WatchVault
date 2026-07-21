@@ -10,7 +10,7 @@
     "test": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
-    "test:contracts": "node --test ../scripts/tests/version-policy.test.mjs ../scripts/tests/docker-contract.test.mjs ../scripts/tests/ci-changes.test.mjs ../scripts/tests/ci-aggregate.test.mjs scripts/workflow-contract.test.mjs scripts/capabilities.test.mjs",
+    "test:contracts": "node --test ../scripts/tests/version-policy.test.mjs ../scripts/tests/docker-contract.test.mjs ../scripts/tests/ci-changes.test.mjs ../scripts/tests/ci-aggregate.test.mjs ../scripts/tests/baseline-manifest.test.mjs scripts/workflow-contract.test.mjs scripts/capabilities.test.mjs",
     "validate:phase": "npm run test:contracts && node ../scripts/version.mjs check && node scripts/capabilities.mjs check && python -m pytest ../backend/tests && npm run build && npm run test -- --run && npm run test:e2e"
   },
   "dependencies": {
