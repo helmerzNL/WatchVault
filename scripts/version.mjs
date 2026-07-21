@@ -57,8 +57,13 @@ function resolveBase(args) {
   if (process.env.GITHUB_EVENT_BEFORE && !/^0+$/.test(process.env.GITHUB_EVENT_BEFORE)) {
     candidates.push(process.env.GITHUB_EVENT_BEFORE);
   }
-  candidates.push("origin/main", "HEAD");
-  return candidates.find(refExists) ?? "HEAD";
+  candidates.push("origin/main");
+  const resolved = candidates.find(refExists);
+  if (resolved) return resolved;
+  if (process.env.CI || process.env.GITHUB_ACTIONS === "true") {
+    throw new Error("Unable to resolve comparison base in CI; pass --base <commit-sha>");
+  }
+  return "HEAD";
 }
 
 function readJsonAtRef(ref, path) {

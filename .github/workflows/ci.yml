@@ -62,10 +62,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "20.19"
-      - run: node scripts/version.mjs check
+      - name: Check PR version against immutable base
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/version.mjs check --base "$BASE_SHA"
+      - name: Check push or dispatch version
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: node scripts/version.mjs check
 
   inventory:
     name: Capability inventory

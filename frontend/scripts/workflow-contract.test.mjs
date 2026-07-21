@@ -29,6 +29,19 @@ test("CI uses safe triggers, read-only defaults, and full history", () => {
   assert.match(ciSource, /tags:\s*\[\s*["']?v\*["']?\s*\]/);
   assert.match(ciSource, /^permissions:\s*\n\s+contents:\s+read/m);
   assert.match(ciSource, /fetch-depth:\s*0/);
+  const versionCheckout = ci.jobs.version.steps.find(
+    (step) => step.uses === "actions/checkout@v4",
+  );
+  assert.equal(
+    versionCheckout?.with?.["fetch-depth"],
+    0,
+    "canonical version job must fetch the explicit PR base",
+  );
+  const versionCheck = ci.jobs.version.steps.find(
+    (step) => step.name === "Check PR version against immutable base",
+  );
+  assert.equal(versionCheck?.env?.BASE_SHA, "${{ github.event.pull_request.base.sha }}");
+  assert.equal(versionCheck?.run, 'node scripts/version.mjs check --base "$BASE_SHA"');
 });
 
 test("clean runners provision Python Node npm and the pinned Playwright environment", () => {

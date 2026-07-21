@@ -203,6 +203,36 @@ test("staged check ignores an unstaged bump and prints exact remediation", {
   assert.match(`${result.stdout}${result.stderr}`, new RegExp(`${REMEDIATION}$`, "m"));
 });
 
+test("CI fails closed without a resolvable base and explicit base catches protected changes", {
+  skip: !existsSync(VERSION_CLI),
+}, () => {
+  const root = createRepository();
+  writeFileSync(join(root, "backend", "app.py"), "protected CI change\n");
+  const ciEnvironment = {
+    ...process.env,
+    CI: "true",
+    GITHUB_BASE_REF: "",
+    GITHUB_EVENT_BEFORE: "",
+  };
+  const missingBase = spawnSync(process.execPath, [VERSION_CLI, "check"], {
+    cwd: root,
+    encoding: "utf8",
+    env: ciEnvironment,
+  });
+  assert.notEqual(missingBase.status, 0);
+  assert.match(`${missingBase.stdout}${missingBase.stderr}`, /Unable to resolve comparison base in CI/);
+  assert.match(`${missingBase.stdout}${missingBase.stderr}`, new RegExp(`${REMEDIATION}$`, "m"));
+
+  const explicitBase = spawnSync(
+    process.execPath,
+    [VERSION_CLI, "check", "--base", git(root, "rev-parse", "HEAD").trim()],
+    { cwd: root, encoding: "utf8", env: ciEnvironment },
+  );
+  assert.notEqual(explicitBase.status, 0);
+  assert.match(`${explicitBase.stdout}${explicitBase.stderr}`, /Protected changes require a version/);
+  assert.match(`${explicitBase.stdout}${explicitBase.stderr}`, new RegExp(`${REMEDIATION}$`, "m"));
+});
+
 test("setup configures the committed staged-only hook idempotently", {
   skip: !existsSync(SETUP_CLI) || !existsSync(HOOK),
 }, () => {
