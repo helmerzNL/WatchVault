@@ -65,6 +65,7 @@ status: complete
 - Proved ordinary immutable comparison in successful pull-request run `29851346956`.
 - Verified live active ruleset `18341729` targets only `refs/heads/main`, requires pull requests and exact status `delivery / gate`, and contains no bypass actors.
 - Proved a second patch bump was byte-preserving at canonical version `1.0.1`.
+- Closed the independent verifier's CI-base gap and passed re-verification with all five phase truths and all six DELV requirements satisfied.
 
 ## Approved Manifest
 
@@ -92,12 +93,14 @@ status: complete
 1. **Task 1: Add provenance-complete baseline generation** - `9322dec`, `21d1529`
 2. **Task 1: Commit reviewed baseline candidates and immutable comparison** - `d9e363a`
 3. **Task 2: Configure required aggregate gate** - external ruleset `18341729`
+4. **Gap closure: Enforce immutable PR base in canonical version CI** - `3c3dffc`
 
 ## Deviations from Plan
 
 - The first dispatch exposed that the artifact glob still referenced Playwright's obsolete `*-snapshots` layout. The workflow and contract now use the configured `e2e/__screenshots__` tree.
 - The second candidate exposed that provenance existed only in the artifact name. A deterministic JSON manifest now records source commit, exact Playwright version, container identity, count, byte size, and SHA-256 for every image.
 - The workflow could be dispatched from the published feature branch before merge, allowing the complete human checkpoint to finish without weakening default-branch controls.
+- Independent verification found that the Canonical version job's shallow checkout could collapse its diff to HEAD. The job now fetches full history, receives the immutable PR base SHA explicitly, and the CLI fails closed when CI cannot resolve a comparison base.
 
 ## Issues Encountered
 
