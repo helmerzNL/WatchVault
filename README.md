@@ -366,7 +366,7 @@ If you have the repo checked out and want to build the image locally instead of 
 from GHCR:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+node scripts/docker-version.mjs compose up -d --build
 ```
 
 ### Updating

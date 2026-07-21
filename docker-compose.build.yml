@@ -3,9 +3,12 @@
 # Use this when you have the repository checked out and want to build the image
 # locally instead of pulling the prebuilt image from GHCR:
 #
-#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#   node scripts/docker-version.mjs compose up -d --build
 #
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        VERSION: ${WATCHVAULT_VERSION:?Run through scripts/docker-version.mjs}
     pull_policy: build

@@ -1,14 +1,18 @@
+ARG VERSION
+
 # ─── WatchVault: single-container image ────────────────────────────────────
 # Stage 1: build the React PWA into static assets.
 FROM node:20-alpine AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: python runtime running nginx + gunicorn + mcp + worker via supervisor.
 FROM python:3.12-slim AS runtime
+ARG VERSION
+LABEL org.opencontainers.image.version="${VERSION}"
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
@@ -18,6 +22,10 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY VERSION /app/VERSION
+RUN test -n "${VERSION}" \
+ && echo "${VERSION}" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' \
+ && test "$(cat /app/VERSION)" = "${VERSION}"
 
 # Python deps
 COPY backend/requirements.txt ./backend/requirements.txt
