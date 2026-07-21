@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
+    "test:contracts": "node --test ../scripts/tests/version-policy.test.mjs ../scripts/tests/docker-contract.test.mjs ../scripts/tests/ci-changes.test.mjs scripts/workflow-contract.test.mjs scripts/capabilities.test.mjs",
+    "validate:phase": "npm run test:contracts && node ../scripts/version.mjs check && node scripts/capabilities.mjs check && python -m pytest ../backend/tests && npm run build && npm run test -- --run && npm run test:e2e"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^11.0.0",
@@ -16,11 +21,22 @@
     "recharts": "^2.12.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.61.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^6.0.3",
+    "ajv": "8.20.0",
+    "axe-core": "4.12.1",
+    "jsdom": "29.1.1",
     "typescript": "^5.5.4",
     "vite": "^8.1.2",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "4.1.10",
+    "yaml": "2.8.1"
   }
 }
