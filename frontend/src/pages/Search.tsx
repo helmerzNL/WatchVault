@@ -164,14 +164,14 @@ export function Search() {
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="row" style={{ gap: 10, marginBottom: 14 }}>
           <IconSearch width={20} height={20} className="muted" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus
+          <input type="search" aria-label={t("search.placeholder")} value={q} onChange={(e) => setQ(e.target.value)} autoFocus
             placeholder={t("search.placeholder")} style={{ border: "none", minHeight: 32, padding: 0, background: "transparent" }} />
         </div>
         <hr className="divider" style={{ margin: "0 0 14px" }} />
         <div className="filters-grid">
           <div>
-            <label>{t("search.type")}</label>
-            <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <label htmlFor="search-kind">{t("search.type")}</label>
+            <select id="search-kind" value={kind} onChange={(e) => setKind(e.target.value)}>
               <option value="">{t("search.all")}</option>
               <option value="movie">{t("common.movies")}</option>
               <option value="series">{t("common.series")}</option>
@@ -180,34 +180,34 @@ export function Search() {
             </select>
           </div>
           <div>
-            <label>{t("search.platform")}</label>
-            <select value={platform} onChange={(e) => setPlatform(e.target.value)}>
+            <label htmlFor="search-platform">{t("search.platform")}</label>
+            <select id="search-platform" value={platform} onChange={(e) => setPlatform(e.target.value)}>
               <option value="">{t("search.any")}</option>
               {platformOptions.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
             </select>
           </div>
           <div>
-            <label>{t("search.genre")}</label>
-            <select value={genre} onChange={(e) => setGenre(e.target.value)}>
+            <label htmlFor="search-genre">{t("search.genre")}</label>
+            <select id="search-genre" value={genre} onChange={(e) => setGenre(e.target.value)}>
               <option value="">{t("search.any")}</option>
               {genreSelectOptions.map((g) => <option key={g} value={g}>{tGenre(g)}</option>)}
             </select>
           </div>
           <div>
-            <label>{t("search.actor")}</label>
-            <input value={actor} onChange={(e) => setActor(e.target.value)} placeholder={t("search.actorPlaceholder")} />
+            <label htmlFor="search-actor">{t("search.actor")}</label>
+            <input id="search-actor" value={actor} onChange={(e) => setActor(e.target.value)} placeholder={t("search.actorPlaceholder")} />
           </div>
           <div>
-            <label>{t("search.year")}</label>
-            <select value={year} onChange={(e) => setYear(e.target.value)}>
+            <label htmlFor="search-year">{t("search.year")}</label>
+            <select id="search-year" value={year} onChange={(e) => setYear(e.target.value)}>
               <option value="">{t("search.any")}</option>
               {yearSelectOptions.map((y) => <option key={y} value={String(y)}>{y}</option>)}
             </select>
           </div>
           {tagOptions.length > 0 && (
             <div>
-              <label>{t("tags.label")}</label>
-              <select value={tag} onChange={(e) => setTag(e.target.value)}>
+              <label htmlFor="search-tag">{t("tags.label")}</label>
+              <select id="search-tag" value={tag} onChange={(e) => setTag(e.target.value)}>
                 <option value="">{t("search.any")}</option>
                 {tagOptions.map((tg) => <option key={tg.id} value={tg.id}>{tg.name}</option>)}
               </select>
