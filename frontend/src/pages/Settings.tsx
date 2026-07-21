@@ -43,9 +43,9 @@ function Appearance() {
           </div>
         </div>
         <div>
-          <label>{t("settings.defaultProfile")}</label>
+          <label htmlFor="default-profile">{t("settings.defaultProfile")}</label>
           <div className="row" style={{ gap: 12, alignItems: "center" }}>
-            <select value={defaultProfile} onChange={(e) => savePrefs({ default_profile: e.target.value })}
+            <select id="default-profile" value={defaultProfile} onChange={(e) => savePrefs({ default_profile: e.target.value })}
               style={{ width: "auto", minWidth: 180 }}>
               <option value="all">{t("common.household")}</option>
               {profiles.map((p) => (
