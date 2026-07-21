@@ -155,15 +155,15 @@ jobs:
         working-directory: frontend
         run: |
           npx playwright test --update-snapshots
-          test "$(find e2e -type f -path '*-snapshots/*.png' | wc -l)" -eq 16
-          find e2e -type f -path '*-snapshots/*.png' -print0 \
+          test "$(find e2e/__screenshots__ -type f -name '*.png' | wc -l)" -eq 16
+          find e2e/__screenshots__ -type f -name '*.png' -print0 \
             | sort -z \
             | xargs -0 sha256sum > playwright-baseline-manifest.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: playwright-baselines-${{ github.sha }}
           path: |
-            frontend/e2e/**/*-snapshots/*.png
+            frontend/e2e/__screenshots__/**/*.png
             frontend/playwright-baseline-manifest.sha256
           if-no-files-found: error
           retention-days: 14
