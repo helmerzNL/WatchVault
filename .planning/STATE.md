@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 1
 current_phase_name: Delivery Safeguards and Behavioral Baseline
 status: executing
-stopped_at: Plan 01-08 complete — beginning Wave 4
-last_updated: "2026-07-21T18:35:00.000Z"
+stopped_at: Plan 01-09 complete — Plan 01-10 requires GitHub baseline and ruleset authority
+last_updated: "2026-07-21T18:47:00.000Z"
 last_activity: 2026-07-21
-last_activity_desc: Plan 01-08 established deterministic Chromium journey evidence
+last_activity_desc: Plan 01-09 established selective CI and the aggregate delivery gate
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -28,30 +28,30 @@ See: .planning/PROJECT.md (updated 2026-07-21)
 ## Current Position
 
 Phase: 1 of 9 (Delivery Safeguards and Behavioral Baseline)
-Plan: 8 of 10 in current phase
+Plan: 9 of 10 in current phase
 Status: Executing
-Last activity: 2026-07-21 — Plan 01-08 established deterministic Chromium journey evidence
+Last activity: 2026-07-21 — Plan 01-09 established selective CI and the aggregate delivery gate
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8
-- Average duration: 21 min
-- Total execution time: 2.9 hours
+- Total plans completed: 9
+- Average duration: 20 min
+- Total execution time: 3.0 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Delivery Safeguards and Behavioral Baseline | 8/10 | 171 min | 21 min |
+| 1. Delivery Safeguards and Behavioral Baseline | 9/10 | 182 min | 20 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 22 min, 19 min, 18 min, 20 min, 45 min
-- Trend: Browser integration added expected execution time
+- Last 5 plans: 19 min, 18 min, 20 min, 45 min, 11 min
+- Trend: CI integration returned to normal execution time
 
 ## Accumulated Context
 
@@ -84,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-21T18:35:00.000Z
-Stopped at: Plan 01-08 complete — beginning Wave 4
-Resume file: .planning/phases/01-delivery-safeguards-and-behavioral-baseline/01-09-PLAN.md
+Last session: 2026-07-21T18:47:00.000Z
+Stopped at: Plan 01-09 complete — Plan 01-10 requires GitHub baseline and ruleset authority
+Resume file: .planning/phases/01-delivery-safeguards-and-behavioral-baseline/01-10-PLAN.md
