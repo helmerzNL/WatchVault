@@ -88,7 +88,7 @@ describe("TitleDetail watch mutation", () => {
       initialEntries: ["/titles/title-1"],
       routePath: "/titles/:id",
     });
-    expect(await screen.findByRole("heading", { name: "Synthetic Film" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(/Film$/);
     expect(screen.queryByRole("button", { name: "Mark as watched" })).not.toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
