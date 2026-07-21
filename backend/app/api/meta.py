@@ -5,11 +5,9 @@ from flask import Blueprint, jsonify
 
 from ..config import get_config
 from ..db import query_one
+from ..version import VERSION
 
 bp = Blueprint("meta", __name__, url_prefix="/api")
-
-VERSION = "1.0.0"
-
 
 @bp.get("/health")
 def health():
