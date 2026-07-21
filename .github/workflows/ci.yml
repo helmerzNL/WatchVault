@@ -115,7 +115,7 @@ jobs:
       - run: npm --prefix frontend run test -- --run
 
   browser:
-    name: Browser smoke
+    name: Browser regression
     needs: [select]
     if: needs.select.outputs.browser == 'true'
     runs-on: ubuntu-latest
@@ -132,7 +132,7 @@ jobs:
       - working-directory: frontend
         run: npx playwright install chromium
       - working-directory: frontend
-        run: npx playwright test --grep @smoke
+        run: npx playwright test
 
   baselines:
     name: Generate browser baselines

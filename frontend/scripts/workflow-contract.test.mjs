@@ -69,6 +69,14 @@ test("selection, E2E, baseline generation, and aggregate gate are explicit", () 
   assert.match(ciSource, /sha256|SHA-256/i);
   assert.match(ciSource, /name:\s*delivery \/ gate/);
   assert.match(ciSource, /if:\s*\$\{\{\s*always\(\)\s*\}\}/);
+  assert.ok(
+    ci.jobs.browser.steps.some((step) => step.run === "npx playwright test"),
+    "ordinary browser CI must compare without updating snapshots",
+  );
+  assert.ok(
+    ci.jobs.baselines.steps.some((step) => step.run === "npx playwright test --update-snapshots"),
+    "dispatch generation must be the only snapshot update path",
+  );
 });
 
 test("publication is gated and receives adapter-derived VERSION", () => {
