@@ -349,6 +349,14 @@ export function validateInventory(inventory, options = {}) {
     }
   }
 
+  if (inventory.every((item) => item?.owner && typeof item.id === "string")) {
+    const actualOrder = inventory.map(({ id }) => id);
+    const expectedOrder = canonicalSort(inventory).map(({ id }) => id);
+    if (actualOrder.some((id, index) => id !== expectedOrder[index])) {
+      errors.push("inventory records must use canonical phase, requirement, kind, and ID ordering");
+    }
+  }
+
   if (options.discovered) {
     const discoveredIds = new Set(options.discovered.map(({ id }) => id));
     const missing = [...discoveredIds].filter((id) => !ids.has(id)).sort();

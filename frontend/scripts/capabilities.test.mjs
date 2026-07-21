@@ -110,6 +110,12 @@ test("canonical ordering is phase requirement kind then stable ID", () => {
     entry({ id: "a", kind: "action" }),
   ];
   assert.deepEqual(canonicalSort(values).map(({ id }) => id), ["a", "b", "z"]);
+  assert.throws(
+    () => validateInventory([entry({ id: "action.dashboard.refresh", kind: "action" }), entry()], {
+      root: fixtureRoot(),
+    }),
+    /canonical/i,
+  );
 });
 
 test("generated Markdown is deterministic UTF-8 LF with a final newline", () => {
